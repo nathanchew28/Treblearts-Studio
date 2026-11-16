@@ -13,6 +13,7 @@ import {
 } from '../utils/notationParser';
 import { audioEngine } from '../utils/audioEngine';
 import { SheetMusicViewer } from './SheetMusicViewer';
+import { SheetPhotoScanner } from './SheetPhotoScanner';
 
 interface TeacherStudioProps {
   authorId: string;
@@ -260,30 +261,38 @@ export function TeacherStudio({
 
   return (
     <section className="mx-auto max-w-[1360px] px-6 py-8 space-y-8">
-      <div className="border-b border-slate-200 pb-5">
-        <h1 className="font-display text-3xl font-semibold text-slate-900">
+      <div className="rounded-3xl border-2 border-[#080808] bg-[#FFD000] p-6 shadow-[4px_4px_0_#080808]">
+        <h1 className="font-display text-3xl font-bold text-[#080808]">
           Teacher Exercise Studio
         </h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-600">
-          Upload MusicXML (.musicxml, .xml, .mxl), ABC notation (.abc), or MIDI (.mid) scores.
-          Cadence Studio automatically generates 4 interactive activities—Rhythm Tap, Live Pitch,
-          Two-Hand Coordination, and Performance Recording—for every piece.
+        <p className="mt-1 max-w-2xl text-sm font-medium text-[#080808]/90">
+          Snap a sheet music photo or upload MusicXML (.musicxml, .xml, .mxl), ABC notation (.abc), or MIDI (.mid) scores.
+          Every song automatically generates Rhythm Tap, Live Pitch, Two-Hand Coordination, and Stage Recording!
         </p>
       </div>
+
+      {/* Camera / Photo Scanner inside Teacher Studio */}
+      <SheetPhotoScanner
+        compact
+        authorId={authorId}
+        authorName={authorName}
+        onStartExercise={onPracticeExercise}
+        onSaveExercise={onPublishExercise}
+      />
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         {/* Left: Upload & Notation Editor */}
         <form onSubmit={handlePublish} className="space-y-5 lg:col-span-6">
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-5">
+          <div className="rounded-2xl border-2 border-dashed border-[#080808] bg-white p-5">
             <label
               htmlFor="notation-file-upload"
               className="flex cursor-pointer flex-col items-center justify-center gap-2 text-center"
             >
-              <FileUp className="h-6 w-6 text-blue-700" />
-              <span className="text-sm font-semibold text-slate-900">
+              <FileUp className="h-6 w-6 text-[#2D40EA]" />
+              <span className="text-sm font-bold text-[#080808]">
                 Upload Sheet Notation or MIDI File
               </span>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs font-medium text-slate-600">
                 Supports .musicxml, .xml, .mxl (MuseScore/Finale/Sibelius), .abc, and .mid
               </span>
               <input
@@ -300,14 +309,14 @@ export function TeacherStudio({
           </div>
 
           {parseStatus && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs font-medium text-blue-900">
+            <div className="rounded-xl border-2 border-[#080808] bg-[#FFF9D6] px-4 py-2.5 text-xs font-bold text-[#080808]">
               {parseStatus}
             </div>
           )}
 
           {/* Quick ABC Starter Templates */}
           <div className="space-y-2">
-            <div className="text-xs font-semibold text-slate-700">
+            <div className="text-xs font-bold text-[#080808]">
               Or start from a notation template:
             </div>
             <div className="flex flex-wrap gap-2">
@@ -316,7 +325,7 @@ export function TeacherStudio({
                   key={tpl.label}
                   type="button"
                   onClick={() => handleAbcChange(tpl.abc)}
-                  className="min-h-[36px] rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 cursor-pointer hover:border-blue-400 hover:text-blue-700"
+                  className="min-h-[36px] rounded-xl border-2 border-[#080808] bg-white px-3 py-1.5 text-xs font-bold text-[#080808] cursor-pointer hover:bg-[#FFD000]"
                 >
                   {tpl.label}
                 </button>
@@ -328,7 +337,7 @@ export function TeacherStudio({
             <div>
               <label
                 htmlFor="abc-editor"
-                className="mb-1.5 block text-xs font-semibold text-slate-700"
+                className="mb-1.5 block text-xs font-bold text-[#080808]"
               >
                 ABC Notation Source (Live Engraved)
               </label>
@@ -337,14 +346,14 @@ export function TeacherStudio({
                 rows={7}
                 value={abcInput}
                 onChange={(e) => handleAbcChange(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                className="w-full rounded-xl border-2 border-[#080808] bg-white p-3 font-mono text-xs text-[#080808] focus:outline-none"
               />
             </div>
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="ex-title" className="mb-1 block text-xs font-semibold text-slate-700">
+              <label htmlFor="ex-title" className="mb-1 block text-xs font-bold text-[#080808]">
                 Song / Exercise Title
               </label>
               <input
@@ -354,12 +363,12 @@ export function TeacherStudio({
                 maxLength={100}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                className="w-full rounded-xl border-2 border-[#080808] bg-white px-3 py-2 text-sm font-medium text-[#080808]"
               />
             </div>
 
             <div>
-              <label htmlFor="ex-composer" className="mb-1 block text-xs font-semibold text-slate-700">
+              <label htmlFor="ex-composer" className="mb-1 block text-xs font-bold text-[#080808]">
                 Composer / Method Source
               </label>
               <input
@@ -368,12 +377,12 @@ export function TeacherStudio({
                 maxLength={80}
                 value={composer}
                 onChange={(e) => setComposer(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                className="w-full rounded-xl border-2 border-[#080808] bg-white px-3 py-2 text-sm font-medium text-[#080808]"
               />
             </div>
 
             <div>
-              <label htmlFor="ex-bpm" className="mb-1 block text-xs font-semibold text-slate-700">
+              <label htmlFor="ex-bpm" className="mb-1 block text-xs font-bold text-[#080808]">
                 Target Tempo (BPM)
               </label>
               <input
@@ -383,19 +392,19 @@ export function TeacherStudio({
                 max={220}
                 value={bpm}
                 onChange={(e) => setBpm(Number(e.target.value))}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900"
+                className="w-full rounded-xl border-2 border-[#080808] bg-white px-3 py-2 font-mono text-sm font-bold text-[#080808]"
               />
             </div>
 
             <div>
-              <label htmlFor="ex-diff" className="mb-1 block text-xs font-semibold text-slate-700">
+              <label htmlFor="ex-diff" className="mb-1 block text-xs font-bold text-[#080808]">
                 Difficulty Level
               </label>
               <select
                 id="ex-diff"
                 value={difficulty}
                 onChange={(e) => setDifficulty(e.target.value as DifficultyLevel)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                className="w-full rounded-xl border-2 border-[#080808] bg-white px-3 py-2 text-sm font-medium text-[#080808]"
               >
                 <option value="Beginner">Beginner</option>
                 <option value="Intermediate">Intermediate</option>
@@ -404,14 +413,14 @@ export function TeacherStudio({
             </div>
 
             <div>
-              <label htmlFor="ex-focus" className="mb-1 block text-xs font-semibold text-slate-700">
+              <label htmlFor="ex-focus" className="mb-1 block text-xs font-bold text-[#080808]">
                 Primary Skill Focus
               </label>
               <select
                 id="ex-focus"
                 value={focus}
                 onChange={(e) => setFocus(e.target.value as ExerciseFocus)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                className="w-full rounded-xl border-2 border-[#080808] bg-white px-3 py-2 text-sm font-medium text-[#080808]"
               >
                 <option value="Complete">Complete Song (All 4 Modes)</option>
                 <option value="Rhythm">Rhythm</option>
@@ -421,12 +430,12 @@ export function TeacherStudio({
             </div>
 
             <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+              <label className="flex items-center gap-2 text-xs font-bold text-[#080808] cursor-pointer">
                 <input
                   type="checkbox"
                   checked={isPublic}
                   onChange={(e) => setIsPublic(e.target.checked)}
-                  className="h-4 w-4 accent-blue-700"
+                  className="h-4 w-4 accent-[#EC4899]"
                 />
                 Publish to Classroom Library
               </label>
@@ -434,7 +443,7 @@ export function TeacherStudio({
           </div>
 
           <div>
-            <label htmlFor="ex-tip" className="mb-1 block text-xs font-semibold text-slate-700">
+            <label htmlFor="ex-tip" className="mb-1 block text-xs font-bold text-[#080808]">
               Teacher Coaching Tip for Students
             </label>
             <textarea
@@ -443,14 +452,14 @@ export function TeacherStudio({
               maxLength={400}
               value={coachingTip}
               onChange={(e) => setCoachingTip(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+              className="w-full rounded-xl border-2 border-[#080808] bg-white px-3 py-2 text-sm text-[#080808]"
             />
           </div>
 
           <button
             type="submit"
             disabled={isPublishing}
-            className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white cursor-pointer hover:bg-blue-800 disabled:opacity-50"
+            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border-2 border-[#080808] bg-[#FFD000] px-5 py-2.5 text-sm font-bold text-[#080808] shadow-[3px_3px_0_#080808] cursor-pointer hover:bg-[#FEC700] disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
             {isPublishing ? 'Publishing Exercise...' : 'Create Exercise & Generate 4 Learning Activities'}
@@ -460,13 +469,13 @@ export function TeacherStudio({
         {/* Right: Live Sheet Preview & Auto-Generated Activities */}
         <div className="space-y-5 lg:col-span-6">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold text-slate-900">
+            <h2 className="font-display text-lg font-bold text-[#080808]">
               Live Score Preview ({previewExercise.notes.length} notes)
             </h2>
             <button
               type="button"
               onClick={previewAudio}
-              className="inline-flex min-h-[38px] items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-800 cursor-pointer hover:bg-slate-50"
+              className="inline-flex min-h-[38px] items-center gap-2 rounded-xl border-2 border-[#080808] bg-white px-3.5 py-1.5 text-xs font-bold text-[#080808] cursor-pointer hover:bg-[#FFF9D6]"
             >
               {isPreviewing ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
               {isPreviewing ? 'Previewing...' : 'Audition Score'}
@@ -475,46 +484,46 @@ export function TeacherStudio({
 
           <SheetMusicViewer exercise={previewExercise} activeNoteIndex={-1} interactive />
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
-            <h3 className="font-display text-base font-semibold text-slate-900">
+          <div className="rounded-2xl border-2 border-[#080808] bg-white p-5 shadow-[3px_3px_0_#080808] space-y-3">
+            <h3 className="font-display text-base font-bold text-[#080808]">
               Auto-Generated Learning Path for This Song
             </h3>
-            <ul className="space-y-2 text-xs text-slate-600">
+            <ul className="space-y-2 text-xs text-slate-700">
               <li>
-                <strong className="text-slate-900">01. Rhythm Tap & Knock:</strong> Extracts all{' '}
+                <strong className="text-[#EC4899]">01. Rhythm Tap &amp; Knock:</strong> Extracts all{' '}
                 {previewExercise.notes.length} rhythmic onsets at {bpm} BPM for desk knocks or claps.
               </li>
               <li>
-                <strong className="text-slate-900">02. Pitch & Instrument Lab:</strong> Tunes real-time
+                <strong className="text-[#3898EC]">02. Pitch &amp; Instrument Lab:</strong> Tunes real-time
                 voice or instrument intonation against {keySignature} pitches.
               </li>
               <li>
-                <strong className="text-slate-900">03. Two-Hand Coordination:</strong> Pairs steady
+                <strong className="text-[#2D40EA]">03. Two-Hand Coordination:</strong> Pairs steady
                 left-hand pulse with upper melodic accents.
               </li>
               <li>
-                <strong className="text-slate-900">04. Performance Stage:</strong> Records audio takes
+                <strong className="text-[#080808]">04. Performance Stage:</strong> Records audio takes
                 for student self-review and peer sharing.
               </li>
             </ul>
           </div>
 
           {/* Teacher's Published Exercises */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
-            <h3 className="font-display text-base font-semibold text-slate-900">
+          <div className="rounded-2xl border-2 border-[#080808] bg-white p-5 shadow-[3px_3px_0_#080808] space-y-3">
+            <h3 className="font-display text-base font-bold text-[#080808]">
               Your Created Exercises ({myExercises.length})
             </h3>
             {myExercises.length === 0 ? (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-600">
                 Exercises you publish appear here for quick editing or classroom practice.
               </p>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-200">
                 {myExercises.map((ex) => (
                   <div key={ex.id} className="flex items-center justify-between gap-3 py-2.5">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-slate-900">{ex.title}</div>
-                      <div className="text-xs text-slate-500">
+                      <div className="truncate text-sm font-bold text-[#080808]">{ex.title}</div>
+                      <div className="text-xs text-slate-600">
                         {ex.timeSignature} · {ex.bpm} BPM · {ex.notes.length} notes
                       </div>
                     </div>
@@ -522,7 +531,7 @@ export function TeacherStudio({
                       <button
                         type="button"
                         onClick={() => onPracticeExercise(ex)}
-                        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white cursor-pointer hover:bg-blue-700"
+                        className="rounded-xl border-2 border-[#080808] bg-[#FFD000] px-3 py-1.5 text-xs font-bold text-[#080808] cursor-pointer hover:bg-[#3898EC] hover:text-white"
                       >
                         Open
                       </button>
@@ -530,7 +539,7 @@ export function TeacherStudio({
                         type="button"
                         onClick={() => onDeleteExercise(ex.id)}
                         aria-label={`Delete ${ex.title}`}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                        className="rounded-lg p-1.5 text-slate-500 hover:bg-[#FFDEDE] hover:text-[#FF6565] cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

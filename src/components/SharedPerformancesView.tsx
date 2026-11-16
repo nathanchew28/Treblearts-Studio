@@ -35,22 +35,22 @@ export function SharedPerformancesView({
     return (
       <article
         key={perf.id}
-        className={`rounded-xl border bg-white p-5 space-y-4 ${
-          featured ? 'border-blue-300' : 'border-slate-200'
+        className={`rounded-2xl border-2 border-[#080808] bg-white p-5 shadow-[4px_4px_0_#080808] space-y-4 ${
+          featured ? 'ring-2 ring-[#EC4899]' : ''
         }`}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs font-bold text-[#2D40EA]">
               {perf.authorName} · {perf.instrument} · {perf.activityType}
             </div>
-            <h3 className="mt-0.5 font-display text-lg font-semibold text-slate-900">
+            <h3 className="mt-0.5 font-display text-lg font-bold text-[#080808]">
               {perf.exerciseTitle}
             </h3>
           </div>
-          <div className="text-right font-mono text-xs text-slate-700 tabular-nums">
-            <div className="font-semibold text-slate-900">{perf.accuracy}% Accuracy</div>
-            <div>
+          <div className="text-right font-mono text-xs text-[#080808] tabular-nums">
+            <div className="font-bold">{perf.accuracy}% Accuracy</div>
+            <div className="text-slate-600">
               {perf.stars}/3 Stars · {perf.score} pts
             </div>
           </div>
@@ -59,8 +59,8 @@ export function SharedPerformancesView({
         {perf.audioDataUrl ? (
           <audio controls src={perf.audioDataUrl} className="w-full" />
         ) : (
-          <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
-            <Music2 className="h-4 w-4 text-slate-400" />
+          <div className="flex items-center gap-2 rounded-xl border border-[#080808] bg-[#FFFDF4] px-3 py-2.5 text-xs font-medium text-slate-700">
+            <Music2 className="h-4 w-4 text-[#EC4899]" />
             Scorecard highlight ({perf.durationSec}s session recorded without mic audio)
           </div>
         )}
@@ -70,10 +70,10 @@ export function SharedPerformancesView({
             type="button"
             onClick={() => handleCheer(perf.id)}
             disabled={hasCheered}
-            className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors ${
+            className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border-2 border-[#080808] px-3 py-1.5 text-xs font-bold cursor-pointer transition-colors ${
               hasCheered
-                ? 'border-rose-200 bg-rose-50 text-rose-700'
-                : 'border-slate-200 bg-white text-slate-700 hover:border-rose-300 hover:text-rose-700'
+                ? 'bg-[#EC4899] text-white'
+                : 'bg-[#FFF0F6] text-[#080808] hover:bg-[#EC4899] hover:text-white'
             }`}
           >
             <Heart className="h-3.5 w-3.5" />
@@ -83,11 +83,11 @@ export function SharedPerformancesView({
           <button
             type="button"
             onClick={() => copyLink(perf.id)}
-            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 cursor-pointer hover:bg-slate-50"
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border-2 border-[#080808] bg-[#FFD000] px-3 py-1.5 text-xs font-bold text-[#080808] cursor-pointer hover:bg-[#3898EC] hover:text-white"
           >
             {copiedId === perf.id ? (
               <>
-                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                <Check className="h-3.5 w-3.5" />
                 Copied Link
               </>
             ) : (
@@ -104,25 +104,25 @@ export function SharedPerformancesView({
 
   return (
     <section className="mx-auto max-w-[1360px] px-6 py-8 space-y-8">
-      <div className="border-b border-slate-200 pb-5">
-        <h1 className="font-display text-3xl font-semibold text-slate-900">
+      <div className="rounded-3xl border-2 border-[#080808] bg-[#FFD000] p-6 shadow-[4px_4px_0_#080808]">
+        <h1 className="font-display text-3xl font-bold text-[#080808]">
           Shared Performances Stage
         </h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm font-medium text-[#080808]/90">
           Listen to student and friend recordings, applaud great takes, and copy shareable performance links.
         </p>
       </div>
 
       {spotlightPerformance && (
-        <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-5">
+        <div className="space-y-3 rounded-2xl border-2 border-[#080808] bg-[#FFF9D6] p-5 shadow-[4px_4px_0_#080808]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-blue-800">
+            <span className="text-xs font-bold text-[#EC4899]">
               Shared Friend Performance
             </span>
             <button
               type="button"
               onClick={onClearSpotlight}
-              className="text-xs font-medium text-blue-700 hover:underline cursor-pointer"
+              className="text-xs font-bold text-[#2D40EA] hover:underline cursor-pointer"
             >
               View All Performances
             </button>
@@ -132,7 +132,7 @@ export function SharedPerformancesView({
       )}
 
       {performances.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+        <div className="rounded-2xl border-2 border-[#080808] bg-white p-8 text-center text-sm font-medium text-slate-700 shadow-[4px_4px_0_#080808]">
           No shared recordings yet. Open any song, choose &ldquo;4. Record &amp; Share Stage&rdquo;,
           enable your microphone, and publish your first performance!
         </div>

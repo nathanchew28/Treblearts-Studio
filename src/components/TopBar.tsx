@@ -26,17 +26,17 @@ export function TopBar({
   displayName,
 }: TopBarProps) {
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-[1360px] items-center justify-between gap-8 px-6 py-3.5">
+    <header className="sticky top-0 z-30 border-b-2 border-[#080808] bg-[#FFD000]">
+      <div className="mx-auto flex max-w-[1360px] items-center justify-between gap-6 px-6 py-3">
         <button
           type="button"
           onClick={() => onSelectTab('practice')}
-          className="font-display text-xl font-semibold tracking-tight text-slate-900 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 rounded"
+          className="font-display text-xl font-bold tracking-tight text-[#080808] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#080808] rounded"
         >
           Cadence Studio
         </button>
 
-        <nav className="hidden md:flex items-center gap-6" aria-label="Primary Navigation">
+        <nav className="hidden md:flex items-center gap-2" aria-label="Primary Navigation">
           {NAV_ITEMS.map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -44,19 +44,13 @@ export function TopBar({
                 key={item.id}
                 type="button"
                 onClick={() => onSelectTab(item.id)}
-                className={`relative py-1 text-sm font-medium whitespace-nowrap shrink-0 cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 rounded ${
+                className={`min-h-[38px] rounded-xl px-3.5 py-1.5 text-sm font-bold whitespace-nowrap shrink-0 cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#080808] ${
                   isActive
-                    ? 'text-blue-700'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'border-2 border-[#080808] bg-white text-[#080808] shadow-[2px_2px_0_#080808]'
+                    : 'border-2 border-transparent text-[#080808]/85 hover:bg-[#FEC700] hover:text-[#080808]'
                 }`}
               >
                 {item.label}
-                {isActive && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-x-0 -bottom-[15px] h-0.5 bg-blue-700"
-                  />
-                )}
               </button>
             );
           })}
@@ -66,7 +60,7 @@ export function TopBar({
           <button
             type="button"
             onClick={onAuthAction}
-            className="min-h-[40px] rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white whitespace-nowrap shrink-0 cursor-pointer transition-colors duration-150 hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+            className="min-h-[40px] rounded-xl border-2 border-[#080808] bg-[#080808] px-4 py-2 text-xs font-bold text-[#FFD000] whitespace-nowrap shrink-0 cursor-pointer transition-colors duration-150 hover:bg-[#2D40EA] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             {user ? `Sign Out (${displayName.split(' ')[0]})` : 'Sign In with Google'}
           </button>
@@ -74,7 +68,7 @@ export function TopBar({
       </div>
 
       <nav
-        className="flex md:hidden items-center gap-4 overflow-x-auto border-t border-slate-100 px-4 py-2"
+        className="flex md:hidden items-center gap-2 overflow-x-auto border-t-2 border-[#080808] bg-white px-4 py-2"
         aria-label="Mobile Navigation"
       >
         {NAV_ITEMS.map((item) => {
@@ -84,8 +78,10 @@ export function TopBar({
               key={item.id}
               type="button"
               onClick={() => onSelectTab(item.id)}
-              className={`min-h-[36px] px-2 text-xs font-medium whitespace-nowrap shrink-0 rounded ${
-                isActive ? 'text-blue-700 bg-blue-50' : 'text-slate-600'
+              className={`min-h-[36px] rounded-lg px-3 text-xs font-bold whitespace-nowrap shrink-0 ${
+                isActive
+                  ? 'border-2 border-[#080808] bg-[#FFD000] text-[#080808]'
+                  : 'text-[#080808]/75'
               }`}
             >
               {item.label}

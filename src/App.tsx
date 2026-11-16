@@ -34,11 +34,13 @@ import { ProgressDashboard } from './components/ProgressDashboard';
 import { SharedPerformancesView } from './components/SharedPerformancesView';
 import { TeacherStudio } from './components/TeacherStudio';
 import { TopBar, type NavTab } from './components/TopBar';
+import type { LearningExperienceMode } from './utils/kidFriendlyTheme';
 
 const LOCAL_EXERCISES_KEY = 'cadence_local_exercises_v1';
 const LOCAL_ATTEMPTS_KEY = 'cadence_local_attempts_v1';
 const LOCAL_PROFILE_KEY = 'cadence_local_profile_v1';
 const LOCAL_PERFS_KEY = 'cadence_local_perfs_v1';
+const LOCAL_LEARNING_MODE_KEY = 'cadence_learning_mode_v1';
 
 const DEFAULT_GUEST_PROFILE: UserProfile = {
   uid: 'guest-musician',
@@ -66,6 +68,14 @@ function readLocalJson<T>(key: string, fallback: T): T {
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('practice');
   const [selectedExercise, setSelectedExercise] = useState<MusicExercise | null>(null);
+  const [learningMode, setLearningMode] = useState<LearningExperienceMode>(() =>
+    readLocalJson<LearningExperienceMode>(LOCAL_LEARNING_MODE_KEY, 'kids')
+  );
+
+  const handleChangeLearningMode = useCallback((mode: LearningExperienceMode) => {
+    setLearningMode(mode);
+    localStorage.setItem(LOCAL_LEARNING_MODE_KEY, JSON.stringify(mode));
+  }, []);
 
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile>(() =>
@@ -341,7 +351,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#FFFDF4] text-[#080808]">
       <TopBar
         activeTab={activeTab}
         onSelectTab={(tab) => {
@@ -355,12 +365,12 @@ export default function App() {
 
       {notice && (
         <div className="mx-auto mt-4 max-w-[1360px] px-6">
-          <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-900">
+          <div className="flex items-center justify-between rounded-xl border-2 border-[#080808] bg-[#FFF9D6] px-4 py-2.5 text-xs font-semibold text-[#080808]">
             <span>{notice}</span>
             <button
               type="button"
               onClick={() => setNotice(null)}
-              className="font-semibold text-blue-700 hover:underline cursor-pointer"
+              className="font-bold text-[#2D40EA] hover:underline cursor-pointer"
             >
               Dismiss
             </button>
@@ -372,6 +382,8 @@ export default function App() {
         {activeTab === 'practice' && selectedExercise && (
           <PracticeStage
             exercise={selectedExercise}
+            learningMode={learningMode}
+            onChangeLearningMode={handleChangeLearningMode}
             onBackToLibrary={() => setSelectedExercise(null)}
             onCompleteAttempt={handleCompleteAttempt}
             onSharePerformance={handleSharePerformance}
@@ -381,7 +393,12 @@ export default function App() {
         {activeTab === 'practice' && !selectedExercise && (
           <PracticeHub
             exercises={allExercises}
+            authorId={user?.uid || 'guest-musician'}
+            authorName={profile.displayName}
+            learningMode={learningMode}
+            onChangeLearningMode={handleChangeLearningMode}
             onSelectExercise={handleSelectExercise}
+            onSaveScannedExercise={handlePublishExercise}
             onOpenTeacherStudio={() => setActiveTab('teacher')}
           />
         )}

@@ -25,11 +25,14 @@ import type {
   SongNote,
 } from '../types/music';
 import { audioEngine } from '../utils/audioEngine';
+import { getNoteColorInfo, type LearningExperienceMode } from '../utils/kidFriendlyTheme';
 import { midiToFreq, midiToNoteName } from '../utils/notationParser';
 import { SheetMusicViewer } from './SheetMusicViewer';
 
 interface PracticeStageProps {
   exercise: MusicExercise;
+  learningMode: LearningExperienceMode;
+  onChangeLearningMode: (mode: LearningExperienceMode) => void;
   onBackToLibrary: () => void;
   onCompleteAttempt: (attempt: PracticeAttempt) => void;
   onSharePerformance: (payload: {
@@ -62,6 +65,16 @@ interface JudgmentFlash {
   createdAt: number;
 }
 
+interface HitParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  color: string;
+  life: number;
+}
+
 const ACTIVITY_TABS: { id: ActivityType; label: string; subtitle: string }[] = [
   { id: 'rhythm', label: '1. Rhythm Tap & Knock', subtitle: 'Mic knocks or Spacebar' },
   { id: 'pitch', label: '2. Pitch & Instrument', subtitle: 'Live chromatic tuner' },
@@ -89,12 +102,15 @@ const PIANO_KEYS = [
 
 export function PracticeStage({
   exercise,
+  learningMode,
+  onChangeLearningMode,
   onBackToLibrary,
   onCompleteAttempt,
   onSharePerformance,
 }: PracticeStageProps) {
+  const isKids = learningMode === 'kids';
   const [activity, setActivity] = useState<ActivityType>('rhythm');
-  const [tempoScale, setTempoScale] = useState<number>(100);
+  const [tempoScale, setTempoScale] = useState<number>(() => (learningMode === 'kids' ? 85 : 100));
   const [metronomeOn, setMetronomeOn] = useState<boolean>(true);
   const [guideAudioOn, setGuideAudioOn] = useState<boolean>(true);
   const [countInOn, setCountInOn] = useState<boolean>(true);
@@ -157,6 +173,8 @@ export function PracticeStage({
   const sessionStartMsRef = useRef<number>(0);
   const elapsedMsRef = useRef<number>(0);
   const timerLastTickRef = useRef<number>(0);
+  const particlesRef = useRef<HitParticle[]>([]);
+  const mascotBounceRef = useRef<number>(0);
 
   const effectiveBpm = Math.round((exercise.bpm * tempoScale) / 100);
   const beatsPerSecond = effectiveBpm / 60;
@@ -307,29 +325,50 @@ export function PracticeStage({
 
         const timingLabel =
           Math.abs(offsetMs) <= 45
-            ? 'On the beat'
+            ? 'Right on the beat!'
             : offsetMs < 0
             ? `${Math.abs(Math.round(offsetMs))}ms early`
             : `${Math.round(offsetMs)}ms late`;
 
+        const kidsCheer = grade === 'perfect' ? 'Awesome!' : 'Great!';
+        const studioCheer = grade === 'perfect' ? 'Perfect!' : 'Good';
+
         flashRef.current = {
-          text: labelOverride || (grade === 'perfect' ? 'Perfect!' : 'Good'),
-          color: grade === 'perfect' ? '#059669' : '#2563eb',
+          text: labelOverride || (isKids ? kidsCheer : studioCheer),
+          color: grade === 'perfect' ? '#10b981' : '#38bdf8',
           subtext: timingLabel,
           createdAt: performance.now(),
         };
+
+        // Spawn celebration burst particles at the strike zone
+        const noteColor = isKids ? getNoteColorInfo(cue.midi).hex : '#3898EC';
+        const burstColors = [noteColor, '#FFD000', '#EC4899', '#3898EC', '#34d399'];
+        for (let p = 0; p < (grade === 'perfect' ? 12 : 6); p++) {
+          const angle = (Math.PI * 2 * p) / (grade === 'perfect' ? 12 : 6);
+          const speed = 1.6 + Math.random() * 2.4;
+          particlesRef.current.push({
+            x: 154,
+            y: 105,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 0.8,
+            radius: 3 + Math.random() * 3,
+            color: burstColors[p % burstColors.length],
+            life: 1,
+          });
+        }
+        mascotBounceRef.current = 1;
       } else {
         comboRef.current = 0;
         setCombo(0);
         flashRef.current = {
-          text: labelOverride || 'Missed',
-          color: '#dc2626',
-          subtext: 'Keep listening to the pulse',
+          text: labelOverride || (isKids ? 'Nice try!' : 'Missed'),
+          color: isKids ? '#f59e0b' : '#dc2626',
+          subtext: isKids ? 'Listen & keep clapping!' : 'Keep listening to the pulse',
           createdAt: performance.now(),
         };
       }
     },
-    []
+    [isKids]
   );
 
   // Trigger a tap/knock hit on a specific lane ('right' | 'left' | 'any')
@@ -340,6 +379,8 @@ export function PracticeStage({
       if (nowBeat < -0.35) return;
 
       const msPerBeat = 1000 / beatsPerSecond;
+      const maxWindowMs = isKids ? 290 : 210;
+      const perfectWindowMs = isKids ? 110 : 75;
       let bestCue: TargetCue | null = null;
       let bestAbsMs = Infinity;
       let signedOffsetMs = 0;
@@ -349,7 +390,7 @@ export function PracticeStage({
         if (laneFilter !== 'any' && cue.lane !== laneFilter) continue;
         const deltaMs = (nowBeat - cue.beatStart) * msPerBeat;
         const absMs = Math.abs(deltaMs);
-        if (absMs < bestAbsMs && absMs <= 210) {
+        if (absMs < bestAbsMs && absMs <= maxWindowMs) {
           bestAbsMs = absMs;
           bestCue = cue;
           signedOffsetMs = deltaMs;
@@ -358,15 +399,15 @@ export function PracticeStage({
 
       if (bestCue) {
         if (playSound) {
-          audioEngine.playNote(bestCue.freq, 0.22, 0.7);
+          audioEngine.playNote(bestCue.freq, 0.24, 0.72);
         }
-        const grade = bestAbsMs <= 75 ? 'perfect' : 'good';
+        const grade = bestAbsMs <= perfectWindowMs ? 'perfect' : 'good';
         recordJudgment(bestCue, grade, signedOffsetMs);
       } else if (playSound) {
         audioEngine.playMetronomeClick(laneFilter === 'right');
       }
     },
-    [beatsPerSecond, recordJudgment]
+    [beatsPerSecond, isKids, recordJudgment]
   );
 
   const finishRun = useCallback(async () => {
@@ -441,13 +482,17 @@ export function PracticeStage({
       if (!isRunningRef.current) return;
 
       // Guided Step-by-Step Sight-Reading Mode
+      const centsTolerance = isKids ? 48 : 38;
       if (activity === 'pitch' && guidedStepPitch) {
         const target = cuesRef.current[stepIndexRef.current];
         if (!target) return;
         const samePitchClass =
           source === 'piano' ? midi === target.midi : midi % 12 === target.midi % 12;
-        if (samePitchClass && Math.abs(cents) <= 38) {
-          recordJudgment(target, 'perfect', 0, `${target.noteName} In Tune!`);
+        if (samePitchClass && Math.abs(cents) <= centsTolerance) {
+          const label = isKids
+            ? `${getNoteColorInfo(target.midi).solfege} (${target.noteName})!`
+            : `${target.noteName} In Tune!`;
+          recordJudgment(target, 'perfect', 0, label);
           const nextIdx = stepIndexRef.current + 1;
           stepIndexRef.current = nextIdx;
           setStepCursorIndex(nextIdx);
@@ -465,20 +510,23 @@ export function PracticeStage({
       for (const cue of cuesRef.current) {
         if (cue.status !== 'pending') continue;
         const inWindow =
-          nowBeat >= cue.beatStart - 0.35 &&
-          nowBeat <= cue.beatStart + Math.max(0.55, cue.durationBeats);
+          nowBeat >= cue.beatStart - (isKids ? 0.45 : 0.35) &&
+          nowBeat <= cue.beatStart + Math.max(0.65, cue.durationBeats);
         if (!inWindow) continue;
         const pitchMatches =
           source === 'piano' ? midi === cue.midi : midi % 12 === cue.midi % 12;
-        if (pitchMatches && Math.abs(cents) <= 40) {
+        if (pitchMatches && Math.abs(cents) <= centsTolerance) {
           const offsetMs = (nowBeat - cue.beatStart) * msPerBeat;
-          const grade = Math.abs(cents) <= 20 ? 'perfect' : 'good';
-          recordJudgment(cue, grade, offsetMs, `${cue.noteName} (${cents >= 0 ? '+' : ''}${cents}¢)`);
+          const grade = Math.abs(cents) <= (isKids ? 28 : 20) ? 'perfect' : 'good';
+          const pitchText = isKids
+            ? `${getNoteColorInfo(cue.midi).solfege}!`
+            : `${cue.noteName} (${cents >= 0 ? '+' : ''}${cents}¢)`;
+          recordJudgment(cue, grade, offsetMs, pitchText);
           break;
         }
       }
     },
-    [activity, beatsPerSecond, finishRun, guidedStepPitch, recordJudgment]
+    [activity, beatsPerSecond, finishRun, guidedStepPitch, isKids, recordJudgment]
   );
 
   const toggleMic = async () => {
@@ -709,11 +757,22 @@ export function PracticeStage({
         }
       }
 
-      // Clear & Paint Stage Background
-      ctx.fillStyle = '#0f172a';
+      // Clear & Paint Stage Background (Deep Cobalt Night Sky in Kids Mode, Studio Slate in Studio Mode)
+      ctx.fillStyle = isKids ? '#182468' : '#0f172a';
       ctx.fillRect(0, 0, width, height);
 
-      const hitX = 128;
+      if (isKids) {
+        // Subtle colorful starlight sparkles on canvas
+        ctx.fillStyle = 'rgba(255, 208, 0, 0.25)';
+        for (let sx = 120; sx < width; sx += 140) {
+          ctx.beginPath();
+          ctx.arc(sx, 26, 2.2, 0, Math.PI * 2);
+          ctx.arc(sx + 65, height - 24, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      const hitX = 154;
       const pxPerBeat = 105;
       const beatNow =
         activity === 'pitch' && guidedStepPitch
@@ -729,7 +788,7 @@ export function PracticeStage({
         if (b < 0) continue;
         const x = hitX + (b - beatNow) * pxPerBeat;
         const isMeasure = b % tsNum === 0;
-        ctx.strokeStyle = isMeasure ? 'rgba(148, 163, 184, 0.32)' : 'rgba(148, 163, 184, 0.12)';
+        ctx.strokeStyle = isMeasure ? 'rgba(255, 208, 0, 0.36)' : 'rgba(148, 163, 184, 0.14)';
         ctx.lineWidth = isMeasure ? 1.5 : 1;
         ctx.beginPath();
         ctx.moveTo(x, 18);
@@ -737,8 +796,8 @@ export function PracticeStage({
         ctx.stroke();
 
         if (isMeasure) {
-          ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
-          ctx.font = '500 11px "IBM Plex Mono", monospace';
+          ctx.fillStyle = 'rgba(255, 208, 0, 0.72)';
+          ctx.font = '600 11px "IBM Plex Mono", monospace';
           ctx.fillText(`M.${Math.floor(b / tsNum) + 1}`, x + 5, 28);
         }
       }
@@ -747,7 +806,7 @@ export function PracticeStage({
       if (activity === 'coordination') {
         const yRight = height * 0.34;
         const yLeft = height * 0.7;
-        ctx.strokeStyle = 'rgba(59, 130, 246, 0.25)';
+        ctx.strokeStyle = 'rgba(56, 152, 236, 0.35)';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(0, yRight);
@@ -756,75 +815,186 @@ export function PracticeStage({
         ctx.lineTo(width, yLeft);
         ctx.stroke();
 
-        ctx.fillStyle = '#93c5fd';
-        ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
-        ctx.fillText('RIGHT HAND (J / Instrument)', 14, yRight - 22);
-        ctx.fillStyle = '#6ee7b7';
-        ctx.fillText('LEFT HAND (F / Desk Knock)', 14, yLeft - 22);
+        ctx.fillStyle = '#FFD000';
+        ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
+        ctx.fillText('RIGHT HAND (J / Instrument)', 92, yRight - 22);
+        ctx.fillStyle = '#f9a8d4';
+        ctx.fillText('LEFT HAND (F / Desk Knock)', 92, yLeft - 22);
       } else {
-        // Horizontal pitch or rhythm lane lines
         const centerY = height * 0.52;
-        ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(0, centerY);
+        ctx.moveTo(86, centerY);
         ctx.lineTo(width, centerY);
         ctx.stroke();
       }
 
+      // Bouncing Musical Companion Mascot ("Beat Buddy" Explorer) on the left
+      mascotBounceRef.current = Math.max(0, mascotBounceRef.current - 0.06);
+      const beatBob = isRunningRef.current
+        ? Math.abs(Math.sin(Math.max(0, beatNow) * Math.PI)) * 7
+        : Math.sin(now / 450) * 3;
+      const buddyX = 48;
+      const buddyY = height * 0.54 - beatBob - mascotBounceRef.current * 12;
+
+      // Golden orbit swirl in Kids Explorer mode
+      if (isKids) {
+        ctx.strokeStyle = 'rgba(255, 208, 0, 0.55)';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.ellipse(buddyX, buddyY + 18, 30, 8, -0.15, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Shadow
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(buddyX, height * 0.54 + 28, 22, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Curly hair puffs for Kids Explorer look
+      if (isKids) {
+        ctx.fillStyle = '#3b2314';
+        const puffOffsets = [
+          [-16, -15],
+          [-6, -22],
+          [7, -22],
+          [17, -14],
+          [-20, -4],
+          [20, -4],
+        ];
+        for (const [ox, oy] of puffOffsets) {
+          ctx.beginPath();
+          ctx.arc(buddyX + ox, buddyY + oy, 9.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Buddy round head/face
+      ctx.fillStyle = comboRef.current >= 10 ? '#FFD000' : isKids ? '#fde6d2' : '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(buddyX, buddyY, 21, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Music note antenna
+      ctx.strokeStyle = '#FFD000';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(buddyX, buddyY - 24);
+      ctx.lineTo(buddyX + 3, buddyY - 36);
+      ctx.lineTo(buddyX + 10, buddyY - 33);
+      ctx.stroke();
+
+      // Eyes + Signature Round Explorer Glasses
+      ctx.fillStyle = '#080808';
+      ctx.beginPath();
+      ctx.arc(buddyX - 7, buddyY - 2, 2.8, 0, Math.PI * 2);
+      ctx.arc(buddyX + 7, buddyY - 2, 2.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (isKids) {
+        ctx.strokeStyle = comboRef.current >= 10 ? '#EC4899' : '#e11d48';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.arc(buddyX - 7, buddyY - 2, 7.5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(buddyX + 7, buddyY - 2, 7.5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(buddyX - 0.5, buddyY - 2);
+        ctx.lineTo(buddyX + 0.5, buddyY - 2);
+        ctx.stroke();
+      } else if (comboRef.current >= 10) {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(buddyX - 13, buddyY - 6, 11, 6);
+        ctx.fillRect(buddyX + 2, buddyY - 6, 11, 6);
+      }
+
+      // Smile
+      ctx.strokeStyle = '#080808';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(buddyX, buddyY + 4, 6.5, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.stroke();
+
       // Strike / Playhead Line
-      ctx.strokeStyle = '#3b82f6';
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#FFD000';
+      ctx.lineWidth = 3.5;
       ctx.beginPath();
       ctx.moveTo(hitX, 14);
       ctx.lineTo(hitX, height - 14);
       ctx.stroke();
 
-      ctx.fillStyle = 'rgba(59, 130, 246, 0.16)';
+      ctx.fillStyle = 'rgba(255, 208, 0, 0.2)';
       ctx.beginPath();
-      ctx.arc(hitX, height * 0.52, 16, 0, Math.PI * 2);
+      ctx.arc(hitX, height * 0.52, 20, 0, Math.PI * 2);
       ctx.fill();
 
-      // Draw Note Cues
+      // Draw Note Cues (Rainbow Solfege Colors in Kids Explorer Mode!)
       for (const cue of cuesRef.current) {
         const x = hitX + (cue.beatStart - beatNow) * pxPerBeat;
-        const w = Math.max(26, cue.durationBeats * pxPerBeat - 6);
-        if (x + w < -20 || x > width + 40) continue;
+        const w = Math.max(32, cue.durationBeats * pxPerBeat - 6);
+        if (x + w < 64 || x > width + 40) continue;
 
         let y = height * 0.52;
         if (activity === 'coordination') {
           y = cue.lane === 'right' ? height * 0.34 : height * 0.7;
         } else if (activity === 'pitch' || activity === 'performance') {
-          // Map MIDI 52..80 vertically
           const norm = Math.max(0, Math.min(1, (cue.midi - 52) / 28));
           y = height - 38 - norm * (height - 76);
         }
 
-        let fill = '#3b82f6';
+        const chroma = getNoteColorInfo(cue.midi);
+        let fill = isKids ? chroma.hex : '#3b82f6';
         if (cue.lane === 'left' && activity === 'coordination') fill = '#10b981';
         if (cue.status === 'perfect') fill = '#059669';
         else if (cue.status === 'good') fill = '#2563eb';
-        else if (cue.status === 'missed') fill = '#dc2626';
+        else if (cue.status === 'missed') fill = isKids ? '#64748b' : '#dc2626';
 
         ctx.fillStyle = fill;
         ctx.beginPath();
-        ctx.roundRect(x, y - 14, w, 28, 7);
+        ctx.roundRect(x, y - 15, w, 30, 9);
         ctx.fill();
 
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = fill === '#ca8a04' ? '#0f172a' : '#ffffff';
         ctx.font = '600 12px "IBM Plex Mono", monospace';
-        ctx.fillText(
-          activity === 'rhythm' ? 'TAP' : cue.noteName,
-          x + 9,
-          y + 4
-        );
+        const cueLabel =
+          activity === 'rhythm'
+            ? isKids
+              ? 'CLAP'
+              : 'TAP'
+            : isKids
+            ? `${chroma.solfege} (${chroma.letter})`
+            : cue.noteName;
+        ctx.fillText(cueLabel, x + 8, y + 4);
+      }
+
+      // Animate Hit Celebration Particles
+      for (let i = particlesRef.current.length - 1; i >= 0; i--) {
+        const pt = particlesRef.current[i];
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.vy += 0.08;
+        pt.life -= 0.032;
+        if (pt.life <= 0) {
+          particlesRef.current.splice(i, 1);
+          continue;
+        }
+        ctx.globalAlpha = pt.life;
+        ctx.fillStyle = pt.color;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
       }
 
       // Live Pitch Cursor Marker in Pitch/Performance Modes
       if ((activity === 'pitch' || activity === 'performance') && pitchReading) {
         const norm = Math.max(0, Math.min(1, (pitchReading.midi - 52) / 28));
         const py = height - 38 - norm * (height - 76);
-        ctx.fillStyle = Math.abs(pitchReading.cents) <= 20 ? '#10b981' : '#f59e0b';
+        ctx.fillStyle = Math.abs(pitchReading.cents) <= 24 ? '#10b981' : '#f59e0b';
         ctx.beginPath();
         ctx.arc(hitX, py, 9, 0, Math.PI * 2);
         ctx.fill();
@@ -838,7 +1008,7 @@ export function PracticeStage({
         const alpha = Math.max(0, 1 - (now - flashRef.current.createdAt) / 900);
         ctx.globalAlpha = alpha;
         ctx.fillStyle = flashRef.current.color;
-        ctx.font = '700 18px "Plus Jakarta Sans", sans-serif';
+        ctx.font = '700 19px "Plus Jakarta Sans", sans-serif';
         ctx.fillText(flashRef.current.text, hitX + 26, 40);
         ctx.fillStyle = '#cbd5e1';
         ctx.font = '500 12px "IBM Plex Mono", monospace';
@@ -859,6 +1029,7 @@ export function PracticeStage({
     finishRun,
     guideAudioOn,
     guidedStepPitch,
+    isKids,
     metronomeOn,
     pitchReading,
     recordJudgment,
@@ -917,19 +1088,19 @@ export function PracticeStage({
   return (
     <section className="mx-auto max-w-[1360px] px-6 py-6 space-y-6">
       {/* Breadcrumb & Exercise Title Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border-2 border-[#080808] bg-[#FFD000] p-5 shadow-[4px_4px_0_#080808]">
         <div>
           <button
             type="button"
             onClick={onBackToLibrary}
-            className="mb-1 text-xs font-medium text-blue-700 hover:underline cursor-pointer"
+            className="mb-1 text-xs font-bold text-[#080808] underline decoration-2 hover:text-[#2D40EA] cursor-pointer"
           >
-            Back to Song & Exercise Library
+            Back to Song &amp; Exercise Library
           </button>
-          <h1 className="font-display text-2xl font-semibold text-slate-900">
+          <h1 className="font-display text-2xl font-bold text-[#080808]">
             {exercise.title}
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs font-semibold text-[#080808]/80">
             {exercise.composer} · {exercise.difficulty} · {exercise.timeSignature} · Key of {exercise.keySignature}
           </p>
         </div>
@@ -938,10 +1109,10 @@ export function PracticeStage({
           <button
             type="button"
             onClick={toggleMic}
-            className={`min-h-[40px] flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold cursor-pointer transition-colors ${
+            className={`min-h-[42px] flex items-center gap-2 rounded-xl border-2 border-[#080808] px-4 py-2 text-xs font-bold cursor-pointer transition-colors shadow-[2px_2px_0_#080808] ${
               micEnabled
-                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                : 'border border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
+                ? 'bg-[#3898EC] text-white'
+                : 'bg-white text-[#080808] hover:bg-[#FFFDF4]'
             }`}
           >
             {micEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
@@ -952,7 +1123,7 @@ export function PracticeStage({
             <button
               type="button"
               onClick={startRun}
-              className="min-h-[40px] flex items-center gap-2 rounded-lg bg-blue-700 px-5 py-2 text-xs font-semibold text-white cursor-pointer transition-colors hover:bg-blue-800"
+              className="min-h-[42px] flex items-center gap-2 rounded-xl border-2 border-[#080808] bg-[#EC4899] px-5 py-2 text-xs font-bold text-white cursor-pointer transition-transform hover:-translate-y-0.5 shadow-[2px_2px_0_#080808]"
             >
               <Play className="h-4 w-4" />
               {activity === 'performance' && micEnabled
@@ -963,7 +1134,7 @@ export function PracticeStage({
             <button
               type="button"
               onClick={stopRun}
-              className="min-h-[40px] flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-xs font-semibold text-white cursor-pointer transition-colors hover:bg-red-700"
+              className="min-h-[42px] flex items-center gap-2 rounded-xl border-2 border-[#080808] bg-[#FF6565] px-5 py-2 text-xs font-bold text-white cursor-pointer shadow-[2px_2px_0_#080808]"
             >
               <Pause className="h-4 w-4" />
               Stop
@@ -973,13 +1144,13 @@ export function PracticeStage({
       </div>
 
       {micError && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+        <div className="rounded-xl border-2 border-[#080808] bg-[#FFF9D6] px-4 py-3 text-xs font-semibold text-[#080808]">
           {micError}
         </div>
       )}
 
       {/* Segmented Activity Switcher (4 Activities Auto-Generated for Every Song) */}
-      <div className="grid grid-cols-1 gap-2 rounded-xl bg-slate-100 p-1.5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 rounded-2xl border-2 border-[#080808] bg-white p-2 shadow-[3px_3px_0_#080808] sm:grid-cols-2 lg:grid-cols-4">
         {ACTIVITY_TABS.map((tab) => {
           const active = activity === tab.id;
           return (
@@ -990,14 +1161,14 @@ export function PracticeStage({
                 void stopRun();
                 setActivity(tab.id);
               }}
-              className={`min-h-[44px] rounded-lg px-3 py-2 text-left cursor-pointer transition-colors ${
+              className={`min-h-[46px] rounded-xl px-3.5 py-2 text-left cursor-pointer transition-colors ${
                 active
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'border-2 border-[#080808] bg-[#FFD000] text-[#080808]'
+                  : 'border-2 border-transparent text-slate-700 hover:bg-[#FFF9D6]'
               }`}
             >
-              <div className="text-xs font-semibold whitespace-nowrap truncate">{tab.label}</div>
-              <div className="text-[11px] text-slate-500 whitespace-nowrap truncate">
+              <div className="text-xs font-bold whitespace-nowrap truncate">{tab.label}</div>
+              <div className="text-[11px] font-medium text-[#080808]/75 whitespace-nowrap truncate">
                 {tab.subtitle}
               </div>
             </button>
@@ -1107,10 +1278,16 @@ export function PracticeStage({
             <button
               type="button"
               onMouseDown={() => handleRhythmStrike('any', true)}
-              className="flex min-h-[76px] w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-900 cursor-pointer transition-transform active:scale-[0.99] hover:border-blue-400 hover:bg-blue-50/40"
+              className={`flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-[#080808] font-bold cursor-pointer transition-transform active:scale-[0.99] shadow-[3px_3px_0_#080808] ${
+                isKids
+                  ? 'min-h-[96px] bg-[#FFD000] text-base text-[#080808] hover:bg-[#FEC700]'
+                  : 'min-h-[78px] bg-white text-sm text-[#080808] hover:bg-[#FFF9D6]'
+              }`}
             >
-              <Hand className="h-5 w-5 text-blue-700" />
-              Tap Here, Press Spacebar, or Knock on Your Desk
+              <Hand className="h-6 w-6 text-[#EC4899]" />
+              {isKids
+                ? 'Big Clap Pad! Tap Here, Press Spacebar, or Knock on Your Table'
+                : 'Tap Here, Press Spacebar, or Knock on Your Desk'}
             </button>
           )}
 
@@ -1119,18 +1296,18 @@ export function PracticeStage({
               <button
                 type="button"
                 onMouseDown={() => handleRhythmStrike('left', true)}
-                className="flex min-h-[76px] flex-col items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-emerald-950 cursor-pointer transition-transform active:scale-[0.98] hover:bg-emerald-100/70"
+                className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl border-2 border-[#080808] bg-[#EC4899] p-3 text-white shadow-[3px_3px_0_#080808] cursor-pointer transition-transform active:scale-[0.98]"
               >
-                <span className="text-sm font-semibold">Left Hand / Bass Pulse</span>
-                <span className="text-xs text-emerald-700">Press F key or Desk Knock</span>
+                <span className="text-sm font-bold">Left Hand / Bass Pulse</span>
+                <span className="text-xs font-medium text-white/90">Press F key or Desk Knock</span>
               </button>
               <button
                 type="button"
                 onMouseDown={() => handleRhythmStrike('right', true)}
-                className="flex min-h-[76px] flex-col items-center justify-center rounded-xl border border-blue-200 bg-blue-50/60 p-3 text-blue-950 cursor-pointer transition-transform active:scale-[0.98] hover:bg-blue-100/70"
+                className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl border-2 border-[#080808] bg-[#3898EC] p-3 text-white shadow-[3px_3px_0_#080808] cursor-pointer transition-transform active:scale-[0.98]"
               >
-                <span className="text-sm font-semibold">Right Hand / Melody Cue</span>
-                <span className="text-xs text-blue-700">Press J key or Play Instrument</span>
+                <span className="text-sm font-bold">Right Hand / Melody Cue</span>
+                <span className="text-xs font-medium text-white/90">Press J key or Play Instrument</span>
               </button>
             </div>
           )}
@@ -1139,12 +1316,15 @@ export function PracticeStage({
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="mb-2 flex items-center justify-between text-xs text-slate-600">
                 <span className="font-semibold text-slate-800">
-                  Interactive Practice Keyboard (or play your acoustic instrument into Mic)
+                  {isKids
+                    ? 'Rainbow Xylophone & Piano Keys (Tap a glowing color or sing!)'
+                    : 'Interactive Practice Keyboard (or play your acoustic instrument into Mic)'}
                 </span>
                 <span>Keys Z–M</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {PIANO_KEYS.map((k) => {
+                  const chroma = getNoteColorInfo(k.midi);
                   const isTarget =
                     (guidedStepPitch && targetStepNote?.midi === k.midi) ||
                     (!guidedStepPitch &&
@@ -1160,16 +1340,22 @@ export function PracticeStage({
                         });
                         handlePitchInput(k.midi, 0, 'piano');
                       }}
-                      className={`flex min-h-[54px] min-w-[44px] flex-1 flex-col items-center justify-between rounded-lg border px-1.5 py-2 text-xs font-medium cursor-pointer transition-colors ${
+                      className={`flex min-h-[62px] min-w-[44px] flex-1 flex-col items-center justify-between rounded-lg border px-1.5 py-2 text-xs font-medium cursor-pointer transition-transform active:scale-95 ${
                         isTarget
-                          ? 'border-blue-600 bg-blue-600 text-white'
+                          ? 'ring-2 ring-slate-900 ring-offset-1 scale-[1.03] border-blue-600 bg-blue-600 text-white'
+                          : isKids && !k.sharp
+                          ? chroma.bgClass
                           : k.sharp
                           ? 'border-slate-800 bg-slate-800 text-white hover:bg-slate-700'
                           : 'border-slate-200 bg-slate-50 text-slate-900 hover:bg-slate-100'
                       }`}
                     >
-                      <span>{k.label}</span>
-                      <span className="font-mono text-[10px] opacity-70">{k.keyHint}</span>
+                      <span className="font-semibold">
+                        {isKids && !k.sharp ? chroma.solfege : k.label}
+                      </span>
+                      <span className="font-mono text-[10px] opacity-80">
+                        {isKids ? k.label : k.keyHint}
+                      </span>
                     </button>
                   );
                 })}
@@ -1248,15 +1434,15 @@ export function PracticeStage({
         {/* Right Control & Concept Deck (4 cols) */}
         <aside className="space-y-4 lg:col-span-4">
           {/* Live Scoreboard */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+          <div className="rounded-2xl border-2 border-[#080808] bg-white p-5 shadow-[4px_4px_0_#080808] space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-base font-semibold text-slate-900">
+              <h2 className="font-display text-base font-bold text-[#080808]">
                 Session Metrics
               </h2>
               <button
                 type="button"
                 onClick={resetSession}
-                className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
+                className="inline-flex items-center gap-1 text-xs font-bold text-[#080808] hover:text-[#EC4899] cursor-pointer"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Reset
@@ -1264,7 +1450,7 @@ export function PracticeStage({
             </div>
 
             {/* Stopwatch / Countdown Practice Timer */}
-            <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3.5 space-y-2.5">
+            <div className="rounded-xl border-2 border-[#080808] bg-[#FFF9D6] p-3.5 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-800">
                   <Clock className="h-3.5 w-3.5 text-blue-700" />
@@ -1385,18 +1571,60 @@ export function PracticeStage({
 
           {/* Tempo, Metronome & Sensitivity Controls */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
-            <h2 className="font-display text-base font-semibold text-slate-900">
-              Practice Controls
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-base font-semibold text-slate-900">
+                Practice Controls
+              </h2>
+              <div className="flex items-center gap-1 rounded-md bg-slate-100 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => onChangeLearningMode('kids')}
+                  className={`rounded px-2 py-0.5 text-[11px] font-medium cursor-pointer ${
+                    isKids ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600'
+                  }`}
+                >
+                  Kids (5–8)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeLearningMode('studio')}
+                  className={`rounded px-2 py-0.5 text-[11px] font-medium cursor-pointer ${
+                    !isKids ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+                  }`}
+                >
+                  Studio (9+)
+                </button>
+              </div>
+            </div>
 
-            <div>
-              <div className="mb-1 flex items-center justify-between text-xs">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
                 <label htmlFor="tempo-slider" className="font-medium text-slate-700">
                   Practice Tempo
                 </label>
                 <span className="font-mono text-slate-900 tabular-nums">
                   {effectiveBpm} BPM ({tempoScale}%)
                 </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { label: 'Slow 75%', val: 75 },
+                  { label: 'Steady 100%', val: 100 },
+                  { label: 'Fast 120%', val: 120 },
+                ].map((preset) => (
+                  <button
+                    key={preset.val}
+                    type="button"
+                    onClick={() => setTempoScale(preset.val)}
+                    className={`rounded-md py-1 text-[11px] font-medium cursor-pointer border transition-colors ${
+                      tempoScale === preset.val
+                        ? 'border-blue-600 bg-blue-50 text-blue-800'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
               </div>
               <input
                 id="tempo-slider"

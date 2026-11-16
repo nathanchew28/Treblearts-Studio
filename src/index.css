@@ -4,13 +4,20 @@
   --font-display: "Fraunces", Georgia, serif;
   --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --color-treble-yellow: #ffd000;
+  --color-treble-gold: #fec700;
+  --color-treble-ink: #080808;
+  --color-treble-sky: #3898ec;
+  --color-treble-cobalt: #2d40ea;
+  --color-treble-coral: #ff6565;
+  --color-treble-pink: #ec4899;
 }
 
 @layer base {
   body {
     font-family: var(--font-sans);
-    background-color: #f8fafc;
-    color: #0f172a;
+    background-color: #fffdf4;
+    color: #080808;
   }
 
   h1, h2, h3, .font-display {
@@ -32,6 +39,6 @@
 .abcjs-note-active path,
 .abcjs-note-active ellipse,
 .abcjs-note-active rect {
-  fill: #1d4ed8 !important;
-  stroke: #1d4ed8 !important;
+  fill: #2d40ea !important;
+  stroke: #2d40ea !important;
 }

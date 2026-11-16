@@ -37,7 +37,113 @@ function buildStarterExercise(params: {
   };
 }
 
+const COVER_SHERWOOD_1 = '/assets/aistudio/unnamed_4ad19d0e.jpg';
+const COVER_SHERWOOD_2 = '/assets/aistudio/unnamed_d4644807.jpg';
+
 export const BUILT_IN_EXERCISES: MusicExercise[] = [
+  buildStarterExercise({
+    id: 'lesson-sherwood-fayre-1',
+    abc: `X:1
+T:Sherwood Fayre — Maypole Dance (Lesson 1)
+C:Repertoire 3 · Track 19
+M:3/4
+L:1/8
+Q:1/4=104
+K:C
+V:1 clef=treble
+E2 c2 c2 | c2 B A G F | E2 c2 c2 | c6 |
+w:Weav-ing the rib-bons to-ge-ther, Dance the may-pole.
+E2 c2 c2 | c2 B A G F | B2 G2 G2 | A6 |]
+w:Weav-ing the rib-bons to-ge-ther, Red, blue and gold.
+V:2 clef=treble
+[CEG]6 | [CEG]6 | [CFA]6 | [CFA]6 |
+[CEG]6 | [CEG]6 | [B,FG]6 | [B,FG]6 |]`,
+    difficulty: 'Beginner',
+    focus: 'Complete',
+    coachingTip:
+      'Lilting 3/4 Maypole waltz from Sheet Photo 1! Sing "Weaving the ribbons together" while playing the flowing eighth-note run and steady left-hand I–IV–V7 chords.',
+    coverImage: COVER_SHERWOOD_1,
+    playsCount: 120,
+  }),
+  buildStarterExercise({
+    id: 'lesson-sherwood-fayre-2',
+    abc: `X:2
+T:Sherwood Fayre — Times of Old (Lesson 2)
+C:Repertoire 3 · Track 19 (Part 2)
+M:3/4
+L:1/8
+Q:1/4=104
+K:C
+V:1 clef=treble
+E2 c2 c2 | c2 B A G F | E2 c2 c2 | c6 |
+w:Weav-ing the rib-bons to-ge-ther, Dance the may-pole.
+E2 c2 c2 | c2 B A G F | B2 A2 G2 | G6 |]
+w:Weav-ing the rib-bons to-ge-ther, Like times of old.
+V:2 clef=treble
+[CEG]6 | [CEG]6 | [CFA]6 | [CFA]6 |
+[CEG]6 | [CEG]6 | [B,FG]6 | [CEG]6 |]`,
+    difficulty: 'Beginner',
+    focus: 'Coordination',
+    coachingTip:
+      'Continuation lesson from Sheet Photo 2! Focus on the gentle step-down cadence "Like times of old" (B–A–G) landing cleanly on the home I chord.',
+    coverImage: COVER_SHERWOOD_2,
+    playsCount: 95,
+  }),
+  buildStarterExercise({
+    id: 'starter-twinkle-star',
+    abc: `X:1
+T:Twinkle, Twinkle, Little Star
+C:Traditional Kids Classic
+M:4/4
+L:1/8
+Q:1/4=88
+K:C
+C2 C2 G2 G2 | A2 A2 G4 | F2 F2 E2 E2 | D2 D2 C4 |
+G2 G2 F2 F2 | E2 E2 D4 | G2 G2 F2 F2 | E2 E2 D4 |
+C2 C2 G2 G2 | A2 A2 G4 | F2 F2 E2 E2 | D2 D2 C4 |]`,
+    difficulty: 'Beginner',
+    focus: 'Complete',
+    coachingTip:
+      'Great for ages 5 and up! Follow the Red (Do) and Blue (Sol) notes, clap the steady beat, or sing along.',
+    coverImage: COVER_PITCH,
+    playsCount: 540,
+  }),
+  buildStarterExercise({
+    id: 'starter-mary-lamb',
+    abc: `X:2
+T:Mary Had a Little Lamb
+C:First Notes Melody
+M:4/4
+L:1/8
+Q:1/4=96
+K:C
+E2 D2 C2 D2 | E2 E2 E4 | D2 D2 D4 | E2 G2 G4 |
+E2 D2 C2 D2 | E2 E2 E2 E2 | D2 D2 E2 D2 | C8 |]`,
+    difficulty: 'Beginner',
+    focus: 'Pitch',
+    coachingTip:
+      'Uses only 4 friendly notes (Do, Re, Mi, Sol). Try tapping the colorful xylophone keys or singing each note!',
+    coverImage: COVER_PITCH,
+    playsCount: 468,
+  }),
+  buildStarterExercise({
+    id: 'starter-happy-birthday-rhythm',
+    abc: `X:3
+T:Happy Birthday Clap & Play
+C:Celebration Groove
+M:3/4
+L:1/8
+Q:1/4=92
+K:C
+G G A2 G2 | c2 B4 | G G A2 G2 | d2 c4 |
+G G g2 e2 | c2 B2 A2 | f f e2 c2 | d2 c4 |]`,
+    difficulty: 'Beginner',
+    focus: 'Rhythm',
+    coachingTip:
+      'Feel the joyful 1-2-3 party waltz! Clap your hands or knock lightly on your desk to keep the beat.',
+    coverImage: COVER_RHYTHM,
+    playsCount: 392,
+  }),
   buildStarterExercise({
     id: 'starter-ode-to-joy',
     abc: `X:1
