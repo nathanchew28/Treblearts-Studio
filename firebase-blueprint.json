@@ -1,0 +1,387 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public studio profile for progress tracking, gamified rewards, and leaderboard rankings (strictly non-PII).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "photoUrl": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "studioPersona": {
+          "type": "string",
+          "enum": ["student", "teacher"]
+        },
+        "xp": {
+          "type": "number"
+        },
+        "streakDays": {
+          "type": "number"
+        },
+        "exercisesCompleted": {
+          "type": "number"
+        },
+        "totalMinutes": {
+          "type": "number"
+        },
+        "badges": {
+          "type": "array",
+          "description": "List of unlocked badge IDs (max 24)"
+        },
+        "lastPracticeDate": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 20
+        },
+        "isPublicProfile": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "photoUrl",
+        "studioPersona",
+        "xp",
+        "streakDays",
+        "exercisesCompleted",
+        "totalMinutes",
+        "badges",
+        "lastPracticeDate",
+        "isPublicProfile",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Exercise": {
+      "title": "Exercise",
+      "description": "Teacher-created or uploaded music notation exercise with extracted notes and coaching metadata.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "composer": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 80
+        },
+        "sourceFormat": {
+          "type": "string",
+          "enum": ["abc", "musicxml", "midi"]
+        },
+        "notationText": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 120000
+        },
+        "bpm": {
+          "type": "number"
+        },
+        "timeSignature": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12
+        },
+        "keySignature": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": ["Beginner", "Intermediate", "Master"]
+        },
+        "focus": {
+          "type": "string",
+          "enum": ["Rhythm", "Pitch", "Coordination", "Complete"]
+        },
+        "coachingTip": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 400
+        },
+        "notes": {
+          "type": "array",
+          "description": "Normalized playable note events (max 400)"
+        },
+        "isPublic": {
+          "type": "boolean"
+        },
+        "playsCount": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "authorId",
+        "authorName",
+        "title",
+        "composer",
+        "sourceFormat",
+        "notationText",
+        "bpm",
+        "timeSignature",
+        "keySignature",
+        "difficulty",
+        "focus",
+        "coachingTip",
+        "notes",
+        "isPublic",
+        "playsCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PracticeAttempt": {
+      "title": "PracticeAttempt",
+      "description": "Completed practice activity attempt for progress tracking.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "exerciseId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "exerciseTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "activityType": {
+          "type": "string",
+          "enum": ["rhythm", "pitch", "coordination", "performance"]
+        },
+        "score": {
+          "type": "number"
+        },
+        "accuracy": {
+          "type": "number"
+        },
+        "maxCombo": {
+          "type": "number"
+        },
+        "stars": {
+          "type": "number"
+        },
+        "avgOffsetMs": {
+          "type": "number"
+        },
+        "durationSec": {
+          "type": "number"
+        },
+        "xpEarned": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "exerciseId",
+        "exerciseTitle",
+        "activityType",
+        "score",
+        "accuracy",
+        "maxCombo",
+        "stars",
+        "avgOffsetMs",
+        "durationSec",
+        "xpEarned",
+        "createdAt"
+      ]
+    },
+    "Performance": {
+      "title": "Performance",
+      "description": "Recorded musical performance shared with friends.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "exerciseId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "exerciseTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "activityType": {
+          "type": "string",
+          "enum": ["rhythm", "pitch", "coordination", "performance"]
+        },
+        "instrument": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "score": {
+          "type": "number"
+        },
+        "accuracy": {
+          "type": "number"
+        },
+        "stars": {
+          "type": "number"
+        },
+        "durationSec": {
+          "type": "number"
+        },
+        "audioDataUrl": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 680000
+        },
+        "applauseCount": {
+          "type": "number"
+        },
+        "isPublic": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "authorName",
+        "exerciseId",
+        "exerciseTitle",
+        "activityType",
+        "instrument",
+        "score",
+        "accuracy",
+        "stars",
+        "durationSec",
+        "audioDataUrl",
+        "applauseCount",
+        "isPublic",
+        "createdAt"
+      ]
+    },
+    "PerformanceApplause": {
+      "title": "PerformanceApplause",
+      "description": "Idempotent applause marker ensuring one cheer per user per shared performance.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["userId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public leaderboard & progress profile for each user."
+    },
+    "/exercises/{exerciseId}": {
+      "schema": { "$ref": "#/entities/Exercise" },
+      "description": "Published or private teacher music exercises."
+    },
+    "/attempts/{attemptId}": {
+      "schema": { "$ref": "#/entities/PracticeAttempt" },
+      "description": "Immutable student practice attempt records."
+    },
+    "/performances/{performanceId}": {
+      "schema": { "$ref": "#/entities/Performance" },
+      "description": "Recorded & shareable student performances."
+    },
+    "/performances/{performanceId}/applause/{userId}": {
+      "schema": { "$ref": "#/entities/PerformanceApplause" },
+      "description": "Atomic applause reaction per user per performance."
+    }
+  }
+}

@@ -1,0 +1,286 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny all unless explicitly matched
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Hardened Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Entity Validators
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+        'uid', 'displayName', 'photoUrl', 'studioPersona', 'xp',
+        'streakDays', 'exercisesCompleted', 'totalMinutes', 'badges',
+        'lastPracticeDate', 'isPublicProfile', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'uid', 'displayName', 'photoUrl', 'studioPersona', 'xp',
+        'streakDays', 'exercisesCompleted', 'totalMinutes', 'badges',
+        'lastPracticeDate', 'isPublicProfile', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.uid)
+      && data.uid == request.auth.uid
+      && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60
+      && data.photoUrl is string && data.photoUrl.size() <= 500
+      && data.studioPersona in ['student', 'teacher']
+      && data.xp is number && data.xp >= 0 && data.xp <= 10000000
+      && data.streakDays is number && data.streakDays >= 0 && data.streakDays <= 3650
+      && data.exercisesCompleted is number && data.exercisesCompleted >= 0 && data.exercisesCompleted <= 100000
+      && data.totalMinutes is number && data.totalMinutes >= 0 && data.totalMinutes <= 1000000
+      && data.badges is list && data.badges.size() <= 24
+      && (data.badges.size() == 0 || (data.badges[0] is string && data.badges[0].size() <= 40))
+      && data.lastPracticeDate is string && data.lastPracticeDate.size() <= 20
+      && data.isPublicProfile is bool
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidExercise(data) {
+      return data.keys().hasAll([
+        'id', 'authorId', 'authorName', 'title', 'composer', 'sourceFormat',
+        'notationText', 'bpm', 'timeSignature', 'keySignature', 'difficulty',
+        'focus', 'coachingTip', 'notes', 'isPublic', 'playsCount', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'id', 'authorId', 'authorName', 'title', 'composer', 'sourceFormat',
+        'notationText', 'bpm', 'timeSignature', 'keySignature', 'difficulty',
+        'focus', 'coachingTip', 'notes', 'isPublic', 'playsCount', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.id)
+      && isValidId(data.authorId)
+      && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 60
+      && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
+      && data.composer is string && data.composer.size() <= 80
+      && data.sourceFormat in ['abc', 'musicxml', 'midi']
+      && data.notationText is string && data.notationText.size() <= 120000
+      && data.bpm is number && data.bpm >= 30 && data.bpm <= 240
+      && data.timeSignature is string && data.timeSignature.size() >= 1 && data.timeSignature.size() <= 12
+      && data.keySignature is string && data.keySignature.size() >= 1 && data.keySignature.size() <= 20
+      && data.difficulty in ['Beginner', 'Intermediate', 'Master']
+      && data.focus in ['Rhythm', 'Pitch', 'Coordination', 'Complete']
+      && data.coachingTip is string && data.coachingTip.size() <= 400
+      && data.notes is list && data.notes.size() >= 1 && data.notes.size() <= 400
+      && data.notes[0] is map
+      && data.isPublic is bool
+      && data.playsCount is number && data.playsCount >= 0 && data.playsCount <= 10000000
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidAttempt(data) {
+      return data.keys().hasAll([
+        'id', 'userId', 'exerciseId', 'exerciseTitle', 'activityType',
+        'score', 'accuracy', 'maxCombo', 'stars', 'avgOffsetMs',
+        'durationSec', 'xpEarned', 'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'id', 'userId', 'exerciseId', 'exerciseTitle', 'activityType',
+        'score', 'accuracy', 'maxCombo', 'stars', 'avgOffsetMs',
+        'durationSec', 'xpEarned', 'createdAt'
+      ])
+      && isValidId(data.id)
+      && isValidId(data.userId)
+      && data.userId == request.auth.uid
+      && isValidId(data.exerciseId)
+      && data.exerciseTitle is string && data.exerciseTitle.size() >= 1 && data.exerciseTitle.size() <= 100
+      && data.activityType in ['rhythm', 'pitch', 'coordination', 'performance']
+      && data.score is number && data.score >= 0 && data.score <= 100000
+      && data.accuracy is number && data.accuracy >= 0 && data.accuracy <= 100
+      && data.maxCombo is number && data.maxCombo >= 0 && data.maxCombo <= 1000
+      && data.stars is number && data.stars >= 0 && data.stars <= 3
+      && data.avgOffsetMs is number && data.avgOffsetMs >= -500 && data.avgOffsetMs <= 500
+      && data.durationSec is number && data.durationSec >= 0 && data.durationSec <= 3600
+      && data.xpEarned is number && data.xpEarned >= 0 && data.xpEarned <= 5000
+      && data.createdAt is timestamp;
+    }
+
+    function isValidPerformance(data) {
+      return data.keys().hasAll([
+        'id', 'userId', 'authorName', 'exerciseId', 'exerciseTitle',
+        'activityType', 'instrument', 'score', 'accuracy', 'stars',
+        'durationSec', 'audioDataUrl', 'applauseCount', 'isPublic', 'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'id', 'userId', 'authorName', 'exerciseId', 'exerciseTitle',
+        'activityType', 'instrument', 'score', 'accuracy', 'stars',
+        'durationSec', 'audioDataUrl', 'applauseCount', 'isPublic', 'createdAt'
+      ])
+      && isValidId(data.id)
+      && isValidId(data.userId)
+      && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 60
+      && isValidId(data.exerciseId)
+      && data.exerciseTitle is string && data.exerciseTitle.size() >= 1 && data.exerciseTitle.size() <= 100
+      && data.activityType in ['rhythm', 'pitch', 'coordination', 'performance']
+      && data.instrument is string && data.instrument.size() >= 1 && data.instrument.size() <= 40
+      && data.score is number && data.score >= 0 && data.score <= 100000
+      && data.accuracy is number && data.accuracy >= 0 && data.accuracy <= 100
+      && data.stars is number && data.stars >= 0 && data.stars <= 3
+      && data.durationSec is number && data.durationSec >= 0 && data.durationSec <= 300
+      && data.audioDataUrl is string && data.audioDataUrl.size() <= 680000
+      && data.applauseCount is number && data.applauseCount >= 0 && data.applauseCount <= 1000000
+      && data.isPublic is bool
+      && data.createdAt is timestamp;
+    }
+
+    // Collection: /users/{userId}
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (existing().isPublicProfile == true || isOwner(userId));
+      allow list: if resource.data.isPublicProfile == true;
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().xp <= 500
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'photoUrl', 'studioPersona', 'xp', 'streakDays',
+          'exercisesCompleted', 'totalMinutes', 'badges', 'lastPracticeDate',
+          'isPublicProfile', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    // Collection: /exercises/{exerciseId}
+    match /exercises/{exerciseId} {
+      allow get: if isValidId(exerciseId)
+        && (existing().isPublic == true || (isSignedIn() && existing().authorId == request.auth.uid));
+      allow list: if resource.data.isPublic == true
+        || (isSignedIn() && resource.data.authorId == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(exerciseId)
+        && isValidExercise(incoming())
+        && incoming().id == exerciseId
+        && incoming().authorId == request.auth.uid
+        && incoming().playsCount == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(exerciseId)
+        && isValidExercise(incoming())
+        && incoming().id == existing().id
+        && incoming().authorId == existing().authorId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (existing().authorId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'composer', 'notationText', 'bpm', 'timeSignature',
+              'keySignature', 'difficulty', 'focus', 'coachingTip',
+              'notes', 'isPublic', 'updatedAt'
+            ]))
+          || (existing().isPublic == true
+            && incoming().diff(existing()).affectedKeys().hasOnly(['playsCount', 'updatedAt'])
+            && incoming().playsCount == existing().playsCount + 1)
+        );
+      allow delete: if isVerifiedUser()
+        && isValidId(exerciseId)
+        && existing().authorId == request.auth.uid;
+    }
+
+    // Collection: /attempts/{attemptId}
+    match /attempts/{attemptId} {
+      allow get: if isSignedIn()
+        && isValidId(attemptId)
+        && existing().userId == request.auth.uid;
+      allow list: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(attemptId)
+        && isValidAttempt(incoming())
+        && incoming().id == attemptId
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isVerifiedUser()
+        && isValidId(attemptId)
+        && existing().userId == request.auth.uid;
+    }
+
+    // Collection: /performances/{performanceId}
+    match /performances/{performanceId} {
+      allow get: if isValidId(performanceId)
+        && (existing().isPublic == true || (isSignedIn() && existing().userId == request.auth.uid));
+      allow list: if resource.data.isPublic == true
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(performanceId)
+        && isValidPerformance(incoming())
+        && incoming().id == performanceId
+        && incoming().userId == request.auth.uid
+        && incoming().applauseCount == 0
+        && incoming().createdAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(performanceId)
+        && isValidPerformance(incoming())
+        && incoming().id == existing().id
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && (
+          (existing().userId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['isPublic', 'instrument']))
+          || (existing().isPublic == true
+            && incoming().diff(existing()).affectedKeys().hasOnly(['applauseCount'])
+            && incoming().applauseCount == existing().applauseCount + 1
+            && existsAfter(/databases/$(database)/documents/performances/$(performanceId)/applause/$(request.auth.uid)))
+        );
+      allow delete: if isVerifiedUser()
+        && isValidId(performanceId)
+        && existing().userId == request.auth.uid;
+
+      // Subcollection: /performances/{performanceId}/applause/{applauseUserId}
+      match /applause/{applauseUserId} {
+        allow get: if isValidId(performanceId)
+          && isValidId(applauseUserId)
+          && isSignedIn()
+          && request.auth.uid == applauseUserId;
+        allow list: if false;
+        allow create: if isVerifiedUser()
+          && isValidId(performanceId)
+          && isValidId(applauseUserId)
+          && applauseUserId == request.auth.uid
+          && exists(/databases/$(database)/documents/performances/$(performanceId))
+          && get(/databases/$(database)/documents/performances/$(performanceId)).data.isPublic == true
+          && incoming().keys().hasAll(['userId', 'createdAt'])
+          && incoming().keys().hasOnly(['userId', 'createdAt'])
+          && incoming().userId == request.auth.uid
+          && incoming().createdAt == request.time
+          && getAfter(/databases/$(database)/documents/performances/$(performanceId)).data.applauseCount
+             == get(/databases/$(database)/documents/performances/$(performanceId)).data.applauseCount + 1;
+        allow update, delete: if false;
+      }
+    }
+  }
+}

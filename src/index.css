@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: #f8fafc;
+    color: #0f172a;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* abcjs & OSMD crisp notation rendering helpers */
+.abcjs-container svg,
+.osmd-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.abcjs-note-active path,
+.abcjs-note-active ellipse,
+.abcjs-note-active rect {
+  fill: #1d4ed8 !important;
+  stroke: #1d4ed8 !important;
+}
