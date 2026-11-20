@@ -1,12 +1,61 @@
 import * as Tone from 'tone';
 import { PitchDetector } from 'pitchy';
-import type { PitchReading } from '../types/music';
-import { freqToMidiAndCents } from './notationParser';
+import type { PitchCalibrationSettings, PitchReading } from '../types/music';
+import { freqToMidiAndCentsCalibrated } from './notationParser';
+
+const CALIBRATION_STORAGE_KEY = 'cadence_pitch_calibration_v1';
+
+export const DEFAULT_PITCH_CALIBRATION: PitchCalibrationSettings = {
+  referenceA4Hz: 440,
+  semitoneTranspose: 0,
+  centsTolerance: 40,
+  minClarity: 0.84,
+  noiseGateRms: 0.012,
+  calibratedNoteName: 'C4',
+  instrumentLabel: 'Concert Pitch (Default)',
+};
+
+function loadStoredCalibration(): PitchCalibrationSettings {
+  try {
+    const raw = localStorage.getItem(CALIBRATION_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_PITCH_CALIBRATION };
+    const parsed = JSON.parse(raw) as Partial<PitchCalibrationSettings>;
+    return {
+      referenceA4Hz:
+        typeof parsed.referenceA4Hz === 'number' && parsed.referenceA4Hz >= 400 && parsed.referenceA4Hz <= 480
+          ? parsed.referenceA4Hz
+          : 440,
+      semitoneTranspose:
+        typeof parsed.semitoneTranspose === 'number' && parsed.semitoneTranspose >= -24 && parsed.semitoneTranspose <= 24
+          ? parsed.semitoneTranspose
+          : 0,
+      centsTolerance:
+        typeof parsed.centsTolerance === 'number' && parsed.centsTolerance >= 15 && parsed.centsTolerance <= 75
+          ? parsed.centsTolerance
+          : 40,
+      minClarity:
+        typeof parsed.minClarity === 'number' && parsed.minClarity >= 0.65 && parsed.minClarity <= 0.96
+          ? parsed.minClarity
+          : 0.84,
+      noiseGateRms:
+        typeof parsed.noiseGateRms === 'number' && parsed.noiseGateRms >= 0.004 && parsed.noiseGateRms <= 0.08
+          ? parsed.noiseGateRms
+          : 0.012,
+      calibratedNoteName: parsed.calibratedNoteName || 'C4',
+      instrumentLabel: parsed.instrumentLabel || 'Concert Pitch (Default)',
+      calibratedAtMs: parsed.calibratedAtMs,
+    };
+  } catch {
+    return { ...DEFAULT_PITCH_CALIBRATION };
+  }
+}
 
 class StudioAudioEngine {
   private synth: Tone.PolySynth | null = null;
   private clickHigh: Tone.MembraneSynth | null = null;
   private clickLow: Tone.MembraneSynth | null = null;
+  private pitchCalibration: PitchCalibrationSettings = loadStoredCalibration();
+  private calibrationListeners = new Set<(cal: PitchCalibrationSettings) => void>();
 
   private audioCtx: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
@@ -80,8 +129,36 @@ class StudioAudioEngine {
     }
   }
 
+  getPitchCalibration(): PitchCalibrationSettings {
+    return this.pitchCalibration;
+  }
+
+  setPitchCalibration(next: PitchCalibrationSettings): void {
+    this.pitchCalibration = { ...next };
+    try {
+      localStorage.setItem(CALIBRATION_STORAGE_KEY, JSON.stringify(this.pitchCalibration));
+    } catch {
+      // Ignore storage quota issues
+    }
+    this.calibrationListeners.forEach((fn) => fn(this.pitchCalibration));
+  }
+
+  resetPitchCalibration(): PitchCalibrationSettings {
+    const clean = { ...DEFAULT_PITCH_CALIBRATION };
+    this.setPitchCalibration(clean);
+    return clean;
+  }
+
+  subscribePitchCalibration(listener: (cal: PitchCalibrationSettings) => void): () => void {
+    this.calibrationListeners.add(listener);
+    return () => {
+      this.calibrationListeners.delete(listener);
+    };
+  }
+
   async startMicrophone(options: {
     tapThreshold: number;
+    rawPitchMode?: boolean;
     onPitch?: (reading: PitchReading | null, rawRms: number) => void;
     onTransient?: (rms: number, timestampMs: number) => void;
   }): Promise<void> {
@@ -152,15 +229,20 @@ class StudioAudioEngine {
       // Exponential moving baseline adapts to room noise
       this.movingAvgRms = this.movingAvgRms * 0.92 + rms * 0.08;
 
-      // Pitch detection via Pitchy (McLeod Pitch Method)
+      // Pitch detection via Pitchy (McLeod Pitch Method) with global calibration
       if (options.onPitch) {
-        if (rms > 0.012) {
+        const cal = this.pitchCalibration;
+        const gateRms = options.rawPitchMode ? 0.008 : cal.noiseGateRms;
+        const minClarity = options.rawPitchMode ? 0.72 : cal.minClarity;
+        if (rms > gateRms) {
           const [freq, clarity] = this.pitchDetector.findPitch(
             this.timeDomainBuffer,
             this.audioCtx.sampleRate
           );
-          if (clarity >= 0.84 && freq >= 65 && freq <= 1450) {
-            const { midi, noteName, cents } = freqToMidiAndCents(freq);
+          if (clarity >= minClarity && freq >= 55 && freq <= 1850) {
+            const { midi, noteName, cents } = options.rawPitchMode
+              ? freqToMidiAndCentsCalibrated(freq, 440, 0)
+              : freqToMidiAndCentsCalibrated(freq, cal.referenceA4Hz, cal.semitoneTranspose);
             options.onPitch({ freq, clarity, midi, noteName, cents, rms }, rms);
           } else {
             options.onPitch(null, rms);

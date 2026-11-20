@@ -23,18 +23,22 @@ import {
 import type {
   ActivityType,
   MusicExercise,
+  PitchCalibrationSettings,
   PracticeAttempt,
   RecordedPerformance,
   UserProfile,
 } from './types/music';
 import { OpenSourceLabsHub } from './components/labs/OpenSourceLabsHub';
 import { LeaderboardView } from './components/LeaderboardView';
+import { MelodyDashGame } from './components/MelodyDashGame';
+import { PitchCalibrationModal } from './components/PitchCalibrationModal';
 import { PracticeHub } from './components/PracticeHub';
 import { PracticeStage } from './components/PracticeStage';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { SharedPerformancesView } from './components/SharedPerformancesView';
 import { TeacherStudio } from './components/TeacherStudio';
 import { TopBar, type NavTab } from './components/TopBar';
+import { audioEngine } from './utils/audioEngine';
 import type { LearningExperienceMode } from './utils/kidFriendlyTheme';
 
 const LOCAL_EXERCISES_KEY = 'cadence_local_exercises_v1';
@@ -95,6 +99,16 @@ export default function App() {
   );
   const [spotlightPerf, setSpotlightPerf] = useState<RecordedPerformance | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [calibrationOpen, setCalibrationOpen] = useState<boolean>(false);
+  const [pitchCalibration, setPitchCalibration] = useState<PitchCalibrationSettings>(() =>
+    audioEngine.getPitchCalibration()
+  );
+
+  useEffect(() => {
+    return audioEngine.subscribePitchCalibration((nextCal) => {
+      setPitchCalibration(nextCal);
+    });
+  }, []);
 
   // Check ?share=<performanceId> deep link on boot
   useEffect(() => {
@@ -374,18 +388,20 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FFFDF4] text-[#080808]">
-      <TopBar
-        activeTab={activeTab}
-        onSelectTab={(tab) => {
-          setActiveTab(tab);
-          if (tab !== 'practice') setSelectedExercise(null);
-        }}
-        user={user}
-        onAuthAction={handleAuthAction}
-        displayName={profile.displayName}
-      />
+      {activeTab !== 'game' && (
+        <TopBar
+          activeTab={activeTab}
+          onSelectTab={(tab) => {
+            setActiveTab(tab);
+            if (tab !== 'practice') setSelectedExercise(null);
+          }}
+          user={user}
+          onAuthAction={handleAuthAction}
+          displayName={profile.displayName}
+        />
+      )}
 
-      {notice && (
+      {notice && activeTab !== 'game' && (
         <div className="mx-auto mt-4 max-w-[1360px] px-6">
           <div className="flex items-center justify-between rounded-xl border-2 border-[#080808] bg-[#FFF9D6] px-4 py-2.5 text-xs font-semibold text-[#080808]">
             <span>{notice}</span>
@@ -400,7 +416,17 @@ export default function App() {
         </div>
       )}
 
-      <main className="pb-16">
+      <main className={activeTab === 'game' ? '' : 'pb-16'}>
+        {activeTab === 'game' && (
+          <MelodyDashGame
+            exercises={allExercises}
+            calibration={pitchCalibration}
+            onOpenCalibration={() => setCalibrationOpen(true)}
+            onExitToStudio={() => setActiveTab('practice')}
+            onAwardXp={(xp) => void handleAwardLabXp(xp)}
+          />
+        )}
+
         {activeTab === 'practice' && selectedExercise && (
           <PracticeStage
             exercise={selectedExercise}
@@ -409,6 +435,7 @@ export default function App() {
             onBackToLibrary={() => setSelectedExercise(null)}
             onCompleteAttempt={handleCompleteAttempt}
             onSharePerformance={handleSharePerformance}
+            onOpenCalibration={() => setCalibrationOpen(true)}
           />
         )}
 
@@ -422,6 +449,9 @@ export default function App() {
             onSelectExercise={handleSelectExercise}
             onSaveScannedExercise={handlePublishExercise}
             onOpenTeacherStudio={() => setActiveTab('teacher')}
+            calibration={pitchCalibration}
+            onOpenCalibration={() => setCalibrationOpen(true)}
+            onOpenGame={() => setActiveTab('game')}
           />
         )}
 
@@ -477,6 +507,17 @@ export default function App() {
           />
         )}
       </main>
+
+      <PitchCalibrationModal
+        isOpen={calibrationOpen}
+        onClose={() => setCalibrationOpen(false)}
+        onSaved={(nextCal) => {
+          setPitchCalibration(nextCal);
+          setNotice(
+            `Global pitch calibration updated: ${nextCal.instrumentLabel} (A4 = ${nextCal.referenceA4Hz.toFixed(1)} Hz).`
+          );
+        }}
+      />
     </div>
   );
 }

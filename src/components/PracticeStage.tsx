@@ -13,6 +13,7 @@ import {
   Radio,
   RotateCcw,
   Share2,
+  Sliders,
   Sparkles,
   Usb,
   Volume2,
@@ -46,6 +47,7 @@ interface PracticeStageProps {
     durationSec: number;
     audioDataUrl: string;
   }) => Promise<string | null>;
+  onOpenCalibration?: () => void;
 }
 
 interface TargetCue {
@@ -109,6 +111,7 @@ export function PracticeStage({
   onBackToLibrary,
   onCompleteAttempt,
   onSharePerformance,
+  onOpenCalibration,
 }: PracticeStageProps) {
   const isKids = learningMode === 'kids';
   const [midiDeviceName, setMidiDeviceName] = useState<string | null>(null);
@@ -518,8 +521,9 @@ export function PracticeStage({
     (midi: number, cents: number, source: 'mic' | 'piano') => {
       if (!isRunningRef.current) return;
 
-      // Guided Step-by-Step Sight-Reading Mode
-      const centsTolerance = isKids ? 48 : 38;
+      // Guided Step-by-Step Sight-Reading Mode (honors global pitch calibration)
+      const cal = audioEngine.getPitchCalibration();
+      const centsTolerance = Math.max(isKids ? 45 : 25, cal.centsTolerance);
       if (activity === 'pitch' && guidedStepPitch) {
         const target = cuesRef.current[stepIndexRef.current];
         if (!target) return;
@@ -1237,6 +1241,17 @@ export function PracticeStage({
             {micEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
             {micEnabled ? 'Microphone Listening' : 'Enable Mic (Tap & Pitch)'}
           </button>
+
+          {onOpenCalibration && (
+            <button
+              type="button"
+              onClick={onOpenCalibration}
+              className="min-h-[42px] flex items-center gap-1.5 rounded-xl border-2 border-[#080808] bg-white px-3.5 py-2 text-xs font-bold text-[#080808] cursor-pointer shadow-[2px_2px_0_#080808] hover:bg-[#FFF9D6]"
+            >
+              <Sliders className="h-4 w-4 text-[#EC4899]" />
+              Calibrate Mic
+            </button>
+          )}
 
           {!isRunning ? (
             <button

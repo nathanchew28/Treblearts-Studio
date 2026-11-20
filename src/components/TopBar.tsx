@@ -1,6 +1,6 @@
 import type { User } from 'firebase/auth';
 
-export type NavTab = 'practice' | 'labs' | 'teacher' | 'progress' | 'leaderboard' | 'stage';
+export type NavTab = 'practice' | 'game' | 'labs' | 'teacher' | 'progress' | 'leaderboard' | 'stage';
 
 interface TopBarProps {
   activeTab: NavTab;
@@ -12,6 +12,7 @@ interface TopBarProps {
 
 const NAV_ITEMS: { id: NavTab; label: string }[] = [
   { id: 'practice', label: 'Practice Hub' },
+  { id: 'game', label: 'Melody Dash' },
   { id: 'labs', label: 'Music Labs' },
   { id: 'teacher', label: 'Teacher Studio' },
   { id: 'progress', label: 'Progress' },

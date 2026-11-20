@@ -102,3 +102,14 @@ export interface PitchReading {
   cents: number;
   rms: number;
 }
+
+export interface PitchCalibrationSettings {
+  referenceA4Hz: number;
+  semitoneTranspose: number;
+  centsTolerance: number;
+  minClarity: number;
+  noiseGateRms: number;
+  calibratedNoteName: string;
+  instrumentLabel: string;
+  calibratedAtMs?: number;
+}

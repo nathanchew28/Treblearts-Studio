@@ -15,8 +15,13 @@ export function midiToFreq(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-export function freqToMidiAndCents(freq: number): { midi: number; noteName: string; cents: number } {
-  const midiFloat = 69 + 12 * Math.log2(freq / 440);
+export function freqToMidiAndCentsCalibrated(
+  freq: number,
+  referenceA4Hz = 440,
+  semitoneTranspose = 0
+): { midi: number; noteName: string; cents: number } {
+  const safeA4 = Math.max(380, Math.min(500, referenceA4Hz || 440));
+  const midiFloat = 69 + 12 * Math.log2(freq / safeA4) + semitoneTranspose;
   const midi = Math.round(midiFloat);
   const cents = Math.round((midiFloat - midi) * 100);
   return {
@@ -24,6 +29,10 @@ export function freqToMidiAndCents(freq: number): { midi: number; noteName: stri
     noteName: midiToNoteName(midi),
     cents,
   };
+}
+
+export function freqToMidiAndCents(freq: number): { midi: number; noteName: string; cents: number } {
+  return freqToMidiAndCentsCalibrated(freq, 440, 0);
 }
 
 export interface ParsedNotationResult {

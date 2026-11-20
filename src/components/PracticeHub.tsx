@@ -1,14 +1,16 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   Camera,
+  Gamepad2,
   Mic,
   Music,
   Play,
   Search,
+  Sliders,
   Sparkles,
   Upload,
 } from 'lucide-react';
-import type { ExerciseFocus, MusicExercise } from '../types/music';
+import type { ExerciseFocus, MusicExercise, PitchCalibrationSettings } from '../types/music';
 import type { LearningExperienceMode } from '../utils/kidFriendlyTheme';
 import { AudioToSheetStudio } from './AudioToSheetStudio';
 import { SheetPhotoScanner } from './SheetPhotoScanner';
@@ -25,6 +27,9 @@ interface PracticeHubProps {
     exercise: Omit<MusicExercise, 'playsCount' | 'createdAtMs'>
   ) => Promise<void>;
   onOpenTeacherStudio: () => void;
+  calibration: PitchCalibrationSettings;
+  onOpenCalibration: () => void;
+  onOpenGame: () => void;
 }
 
 const COVER_BY_FOCUS: Record<ExerciseFocus, string> = {
@@ -50,6 +55,9 @@ export function PracticeHub({
   onSelectExercise,
   onSaveScannedExercise,
   onOpenTeacherStudio,
+  calibration,
+  onOpenCalibration,
+  onOpenGame,
 }: PracticeHubProps) {
   const [focusFilter, setFocusFilter] = useState<'All' | ExerciseFocus>('All');
   const [queryText, setQueryText] = useState<string>('');
@@ -70,7 +78,10 @@ export function PracticeHub({
     });
   }, [exercises, focusFilter, queryText]);
 
-  const featured = exercises[0];
+  const uploadedSong = useMemo(
+    () => exercises.find((ex) => !ex.isBuiltIn),
+    [exercises]
+  );
   const isKids = learningMode === 'kids';
 
   const scrollToScanner = () => {
@@ -142,14 +153,14 @@ export function PracticeHub({
               Snap Sheet Music Photo
             </button>
 
-            {featured && (
+            {uploadedSong && (
               <button
                 type="button"
-                onClick={() => onSelectExercise(featured)}
+                onClick={() => onSelectExercise(uploadedSong)}
                 className="inline-flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-[#080808] bg-[#080808] px-5 py-2.5 text-sm font-bold text-[#FFD000] shadow-[3px_3px_0_#FFFFFF] cursor-pointer transition-transform hover:-translate-y-0.5"
               >
                 <Play className="h-4 w-4" />
-                {isKids ? `Play "${featured.title.split('—')[0].trim()}"` : 'Practice Featured Lesson'}
+                Play Uploaded Song
               </button>
             )}
 
@@ -164,13 +175,37 @@ export function PracticeHub({
 
             <button
               type="button"
+              onClick={onOpenGame}
+              className="inline-flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-[#080808] bg-[#10B981] px-5 py-2.5 text-sm font-bold text-[#080808] shadow-[3px_3px_0_#080808] whitespace-nowrap shrink-0 cursor-pointer transition-transform hover:-translate-y-0.5"
+            >
+              <Gamepad2 className="h-4 w-4" />
+              Play Melody Dash
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenCalibration}
+              className="inline-flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-[#080808] bg-white px-4 py-2.5 text-sm font-bold text-[#080808] shadow-[3px_3px_0_#080808] whitespace-nowrap shrink-0 cursor-pointer transition-transform hover:-translate-y-0.5"
+            >
+              <Sliders className="h-4 w-4 text-[#EC4899]" />
+              Calibrate Mic ({calibration.referenceA4Hz.toFixed(0)} Hz)
+            </button>
+
+            <button
+              type="button"
               onClick={onOpenTeacherStudio}
-              className="inline-flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-[#080808] bg-white px-4 py-2.5 text-sm font-bold text-[#080808] shadow-[3px_3px_0_#080808] cursor-pointer transition-transform hover:-translate-y-0.5"
+              className="inline-flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-[#080808] bg-white px-4 py-2.5 text-sm font-bold text-[#080808] shadow-[3px_3px_0_#080808] whitespace-nowrap shrink-0 cursor-pointer transition-transform hover:-translate-y-0.5"
             >
               <Upload className="h-4 w-4 text-[#2D40EA]" />
               Teacher Studio
             </button>
           </div>
+          <p className="text-xs font-semibold text-[#080808]/80 tabular-nums">
+            Global Mic Tuning: {calibration.instrumentLabel} · A4 = {calibration.referenceA4Hz.toFixed(1)} Hz
+            {calibration.semitoneTranspose !== 0
+              ? ` · ${calibration.semitoneTranspose > 0 ? '+' : ''}${calibration.semitoneTranspose} semitones`
+              : ''}
+          </p>
         </div>
 
         {/* Illustrated Studio Focus Cards */}
