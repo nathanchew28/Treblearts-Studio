@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Share2,
   Sparkles,
+  Usb,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -52,6 +53,7 @@ interface TargetCue {
   beatStart: number;
   durationBeats: number;
   midi: number;
+  chordMidis?: number[];
   noteName: string;
   freq: number;
   lane: 'right' | 'left';
@@ -109,6 +111,7 @@ export function PracticeStage({
   onSharePerformance,
 }: PracticeStageProps) {
   const isKids = learningMode === 'kids';
+  const [midiDeviceName, setMidiDeviceName] = useState<string | null>(null);
   const [activity, setActivity] = useState<ActivityType>('rhythm');
   const [tempoScale, setTempoScale] = useState<number>(() => (learningMode === 'kids' ? 85 : 100));
   const [metronomeOn, setMetronomeOn] = useState<boolean>(true);
@@ -161,6 +164,8 @@ export function PracticeStage({
   const lastFrameTimeRef = useRef<number>(0);
   const lastMetronomeBeatRef = useRef<number>(-99);
   const playedGuideIdsRef = useRef<Set<string>>(new Set());
+  const accompanimentCuesRef = useRef<TargetCue[]>([]);
+  const playedAccompIdsRef = useRef<Set<string>>(new Set());
   const offsetSamplesRef = useRef<number[]>([]);
   const comboRef = useRef<number>(0);
   const maxComboRef = useRef<number>(0);
@@ -180,21 +185,28 @@ export function PracticeStage({
   const beatsPerSecond = effectiveBpm / 60;
 
   // Build cues for the selected activity directly from the exercise's parsed notation
-  const baseCues = useMemo<TargetCue[]>(() => {
+  const { baseCues, accompanimentCues } = useMemo<{
+    baseCues: TargetCue[];
+    accompanimentCues: TargetCue[];
+  }>(() => {
     const notes: SongNote[] = exercise.notes.filter((n) => !n.isRest);
     if (activity === 'coordination') {
       const hasLeft = notes.some((n) => n.hand === 'left');
       if (hasLeft) {
-        return notes.map((n, i) => ({
-          id: `coord_${i}`,
-          beatStart: n.beatStart,
-          durationBeats: n.durationBeats,
-          midi: n.midi,
-          noteName: n.noteName,
-          freq: n.freq,
-          lane: n.hand === 'left' ? 'left' : 'right',
-          status: 'pending',
-        }));
+        return {
+          baseCues: notes.map((n, i) => ({
+            id: `coord_${i}`,
+            beatStart: n.beatStart,
+            durationBeats: n.durationBeats,
+            midi: n.midi,
+            chordMidis: n.chordMidis,
+            noteName: n.noteName,
+            freq: n.freq,
+            lane: n.hand === 'left' ? 'left' : 'right',
+            status: 'pending',
+          })),
+          accompanimentCues: [],
+        };
       }
       // Auto-generate steady left-hand downbeat pulse alongside right-hand melody!
       const totalBeats = notes.reduce(
@@ -207,6 +219,7 @@ export function PracticeStage({
         beatStart: n.beatStart,
         durationBeats: n.durationBeats,
         midi: n.midi,
+        chordMidis: n.chordMidis,
         noteName: n.noteName,
         freq: n.freq,
         lane: 'right',
@@ -224,19 +237,41 @@ export function PracticeStage({
           status: 'pending',
         });
       }
-      return generated.sort((a, b) => a.beatStart - b.beatStart);
+      return {
+        baseCues: generated.sort((a, b) => a.beatStart - b.beatStart),
+        accompanimentCues: [],
+      };
     }
 
-    return notes.map((n, i) => ({
-      id: `${activity}_${i}`,
-      beatStart: n.beatStart,
-      durationBeats: n.durationBeats,
-      midi: n.midi,
-      noteName: n.noteName,
-      freq: n.freq,
-      lane: n.hand === 'left' ? 'left' : 'right',
-      status: 'pending',
-    }));
+    const melodyNotes = notes.filter((n) => n.hand !== 'left');
+    const useMelodyOnly = melodyNotes.length > 0;
+    const primaryNotes = useMelodyOnly ? melodyNotes : notes;
+    const leftNotes = useMelodyOnly ? notes.filter((n) => n.hand === 'left') : [];
+
+    return {
+      baseCues: primaryNotes.map((n, i) => ({
+        id: `${activity}_${i}`,
+        beatStart: n.beatStart,
+        durationBeats: n.durationBeats,
+        midi: n.midi,
+        chordMidis: n.chordMidis,
+        noteName: n.noteName,
+        freq: n.freq,
+        lane: n.hand === 'left' ? 'left' : 'right',
+        status: 'pending',
+      })),
+      accompanimentCues: leftNotes.map((n, i) => ({
+        id: `accomp_${i}`,
+        beatStart: n.beatStart,
+        durationBeats: n.durationBeats,
+        midi: n.midi,
+        chordMidis: n.chordMidis,
+        noteName: n.noteName,
+        freq: n.freq,
+        lane: 'left',
+        status: 'pending',
+      })),
+    };
   }, [exercise.notes, exercise.timeSignature, activity]);
 
   const totalSongBeats = useMemo(() => {
@@ -255,7 +290,9 @@ export function PracticeStage({
     currentBeatRef.current = countInOn ? -4 : -0.5;
     lastMetronomeBeatRef.current = -99;
     playedGuideIdsRef.current.clear();
+    playedAccompIdsRef.current.clear();
     cuesRef.current = baseCues.map((c) => ({ ...c, status: 'pending' }));
+    accompanimentCuesRef.current = accompanimentCues.map((c) => ({ ...c, status: 'pending' }));
     offsetSamplesRef.current = [];
     comboRef.current = 0;
     maxComboRef.current = 0;
@@ -273,7 +310,7 @@ export function PracticeStage({
     elapsedMsRef.current = 0;
     setElapsedMs(0);
     setTimerExpired(false);
-  }, [baseCues, countInOn]);
+  }, [baseCues, accompanimentCues, countInOn]);
 
   useEffect(() => {
     setTotalSongPracticeSec(0);
@@ -572,6 +609,49 @@ export function PracticeStage({
     }
   };
 
+  const connectPracticeMidi = async () => {
+    const nav = navigator as Navigator & {
+      requestMIDIAccess?: () => Promise<{
+        inputs: Map<
+          string,
+          { name?: string; onmidimessage: ((evt: { data: Uint8Array }) => void) | null }
+        >;
+      }>;
+    };
+    if (!nav.requestMIDIAccess) {
+      setMicError('Web MIDI requires Chrome or Edge desktop browser.');
+      return;
+    }
+    try {
+      const access = await nav.requestMIDIAccess();
+      let firstName: string | null = null;
+      access.inputs.forEach((input) => {
+        if (!firstName && input.name) firstName = input.name;
+        input.onmidimessage = (evt) => {
+          if (!evt.data || evt.data.length < 3) return;
+          const status = evt.data[0];
+          const note = evt.data[1];
+          const vel = evt.data[2];
+          if ((status & 0xf0) === 0x90 && vel > 0) {
+            void audioEngine.ensureToneReady().then(() => {
+              audioEngine.playNote(midiToFreq(note), 0.35, 0.8);
+            });
+            if (activity === 'rhythm') {
+              handleRhythmStrike('any', false);
+            } else if (activity === 'coordination') {
+              handleRhythmStrike(note < 60 ? 'left' : 'right', false);
+            } else {
+              handlePitchInput(note, 0, 'piano');
+            }
+          }
+        };
+      });
+      setMidiDeviceName(firstName || 'MIDI Keyboard');
+    } catch {
+      setMicError('Could not connect Web MIDI keyboard.');
+    }
+  };
+
   const startRun = async () => {
     await audioEngine.ensureToneReady();
     resetSession();
@@ -739,7 +819,15 @@ export function PracticeStage({
             ) {
               playedGuideIdsRef.current.add(cue.id);
               const vol = activity === 'pitch' ? 0.35 : 0.6;
-              audioEngine.playNote(cue.freq, Math.max(0.18, cue.durationBeats / beatsPerSecond), vol);
+              const dur = Math.max(0.18, cue.durationBeats / beatsPerSecond);
+              if (cue.chordMidis && cue.chordMidis.length > 1) {
+                const eachVol = Math.max(0.16, vol / cue.chordMidis.length);
+                for (const m of cue.chordMidis) {
+                  audioEngine.playNote(midiToFreq(m), dur, eachVol);
+                }
+              } else {
+                audioEngine.playNote(cue.freq, dur, vol);
+              }
             }
             // Mark missed cues past tolerance
             if (
@@ -747,6 +835,26 @@ export function PracticeStage({
               beatNow > cue.beatStart + (0.21 * beatsPerSecond)
             ) {
               recordJudgment(cue, 'missed', 0);
+            }
+          }
+
+          // Background left-hand accompaniment chord playback when active
+          if (guideAudioOn && accompanimentCuesRef.current.length > 0) {
+            for (const accomp of accompanimentCuesRef.current) {
+              if (
+                beatNow >= accomp.beatStart &&
+                beatNow < accomp.beatStart + 0.25 &&
+                !playedAccompIdsRef.current.has(accomp.id)
+              ) {
+                playedAccompIdsRef.current.add(accomp.id);
+                const dur = Math.max(0.25, accomp.durationBeats / beatsPerSecond);
+                const chordNotes =
+                  accomp.chordMidis && accomp.chordMidis.length > 0 ? accomp.chordMidis : [accomp.midi];
+                const perVoiceVol = Math.max(0.12, 0.32 / chordNotes.length);
+                for (const m of chordNotes) {
+                  audioEngine.playNote(midiToFreq(m), dur, perVoiceVol);
+                }
+              }
             }
           }
           setActiveNoteIndex(latestNoteIdx);
@@ -1105,7 +1213,18 @@ export function PracticeStage({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void connectPracticeMidi()}
+            className={`min-h-[42px] flex items-center gap-1.5 rounded-xl border-2 border-[#080808] px-3.5 py-2 text-xs font-bold cursor-pointer shadow-[2px_2px_0_#080808] ${
+              midiDeviceName ? 'bg-emerald-500 text-white' : 'bg-white text-[#080808] hover:bg-[#FFFDF4]'
+            }`}
+          >
+            <Usb className="h-4 w-4" />
+            {midiDeviceName ? `MIDI: ${midiDeviceName}` : 'USB / LED MIDI'}
+          </button>
+
           <button
             type="button"
             onClick={toggleMic}

@@ -24,10 +24,25 @@ const ai = new GoogleGenAI({
 
 app.post('/api/transcribe-sheet', async (req, res) => {
   try {
-    const { imageBase64, mimeType, instrument } = req.body as {
+    const {
+      imageBase64,
+      mimeType,
+      enhancedImageBase64,
+      enhancedMimeType,
+      instrument,
+      omrHints,
+    } = req.body as {
       imageBase64?: string;
       mimeType?: string;
+      enhancedImageBase64?: string;
+      enhancedMimeType?: string;
       instrument?: string;
+      omrHints?: {
+        staffCount?: number;
+        systemCount?: number;
+        estimatedLayout?: string;
+        lineSpacingPx?: number;
+      };
     };
 
     if (!imageBase64 || !mimeType) {
@@ -43,34 +58,67 @@ app.post('/api/transcribe-sheet', async (req, res) => {
     const cleanBase64 = imageBase64.includes(',')
       ? imageBase64.split(',')[1]
       : imageBase64;
+    const cleanEnhanced =
+      enhancedImageBase64 && enhancedImageBase64.includes(',')
+        ? enhancedImageBase64.split(',')[1]
+        : enhancedImageBase64;
 
     const instrumentContext = instrument?.trim()
       ? `The student plays: ${instrument.trim()}. Tailor the coaching tip and clef/register accordingly.`
       : 'Detect the likely instrument or general treble/bass staff from the sheet music.';
 
+    const hintSummary = omrHints?.staffCount
+      ? `Client OMR Preprocessor measured ${omrHints.staffCount} five-line staves (${omrHints.systemCount || omrHints.staffCount} systems, layout=${omrHints.estimatedLayout || 'unknown'}, staff line spacing=${omrHints.lineSpacingPx || 0}px).`
+      : '';
+
+    const parts: Array<{ inlineData: { mimeType: string; data: string } } | { text: string }> = [
+      {
+        inlineData: {
+          mimeType,
+          data: cleanBase64,
+        },
+      },
+    ];
+
+    if (cleanEnhanced) {
+      parts.push({
+        inlineData: {
+          mimeType: enhancedMimeType || 'image/png',
+          data: cleanEnhanced,
+        },
+      });
+    }
+
+    parts.push({
+      text: `Perform strict Optical Music Recognition (OMR) on the sheet music photo${
+        cleanEnhanced ? ' (second image is the Otsu contrast-normalized OMR staff scan)' : ''
+      } and convert it into pitch-accurate ABC notation.
+${instrumentContext}
+${hintSummary}
+
+MANDATORY OMR ACCURACY PROTOCOL:
+1. KEY SIGNATURE & HARMONIC CHECK FIRST:
+   - Inspect sharps (#) or flats (b) next to the clef AND check any Roman numerals (I, IV, V7), chord symbols (G, C, D7), or final tonic note!
+   - Example: If final tonic chord I spells G–B–D (even if key signature is partially cropped), K MUST be G (one sharp F#), NOT C!
+2. CLEF & EXACT STAFF LINE/SPACE READING:
+   - Read each notehead's exact vertical slot relative to the 5 horizontal lines!
+   - Treble Clef (bottom line -> top line): E4(line1), F4(space1), G4(line2), A4(space2), B4(line3), c5(space3), d5(line4), e5(space4), f5(line5), g5(space above), a5(ledger above), d4(space below), c4(ledger below).
+   - Bass Clef (if Grand Staff bottom staff, write V:2 clef=bass using lowercase/commas: G,,=G2 bottom line, B,,=B2 line2, D,=D3 line3, F,=F3 line4, A,=A3 line5, C,=C3 space2, E,=E3 space3). Never write treble notes on a bass staff!
+3. RHYTHMIC DURATION CHECK (L:1/8):
+   - Empty hollow notehead w/ dot = 6 eighths; empty hollow half note = 4; filled quarter note = 2; eighth note/beamed pair = 1 each; quarter rest = z2.
+   - Verify EVERY measure sums strictly to the beats in M:<Meter> (e.g., 6 eighths in 3/4, 8 eighths in 4/4).
+4. OUTPUT STRUCTURE:
+   - Start with X:1, T:, C:, M:, L:1/8, Q:1/4=<BPM>, K:<Key>.
+   - Put melody in V:1 clef=treble (with optional w: lyrics). Put left-hand chords/bass in V:2 clef=bass ONLY if a second bass staff is visibly present.
+   - Keep syntax 100% compatible with abcjs.`,
+    });
+
     const response = await ai.models.generateContent({
       model: 'gemini-4-hydrogen',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType,
-              data: cleanBase64,
-            },
-          },
-          {
-            text: `Transcribe the sheet music in this photo into valid ABC notation so a student can immediately play it as an interactive rhythm, pitch, and coordination exercise. ${instrumentContext}
-Rules for abcNotation:
-- Include X:1, T:<Title>, C:<Composer or Source>, M:<Meter like 4/4 or 3/4>, L:1/8 (or L:1/16), Q:1/4=<BPM>, K:<Key like C, G, F, Am>.
-- Read the actual melody notes and rhythmic durations from the staff faithfully across the visible measures.
-- If there is a bass/accompaniment staff or chord symbols, you may focus Voice 1 on the main melody or include clean playable notes in standard ABC syntax (avoid unsupported custom macros).
-- Keep the ABC notation clean and parseable by abcjs.`,
-          },
-        ],
-      },
+      contents: { parts },
       config: {
         systemInstruction:
-          'You are an expert Optical Music Recognition (OMR) transcriber and encouraging children/all-ages music teacher. Output only accurate structured JSON.',
+          'You are an expert Optical Music Recognition (OMR) engine and encouraging music conservatory teacher. Read every staff line, clef, key signature, accidental, and note duration with mathematical precision. Output only clean structured JSON.',
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -79,7 +127,7 @@ Rules for abcNotation:
             composer: { type: Type.STRING, description: 'Composer, book, or track name' },
             instrument: { type: Type.STRING, description: 'Detected or target instrument' },
             timeSignature: { type: Type.STRING, description: 'Meter such as 4/4, 3/4, 6/8' },
-            keySignature: { type: Type.STRING, description: 'Key signature such as C, G, F, Am' },
+            keySignature: { type: Type.STRING, description: 'Key signature such as C, G, D, F, Bb, Am' },
             bpm: { type: Type.INTEGER, description: 'Recommended practice tempo in BPM (60-160)' },
             difficulty: {
               type: Type.STRING,
@@ -115,7 +163,12 @@ Rules for abcNotation:
     });
 
     const rawText = (response.text ?? '{}').trim();
-    const parsed = JSON.parse(rawText);
+    const cleaned = rawText
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```$/i, '')
+      .trim();
+    const parsed = JSON.parse(cleaned);
     res.json(parsed);
   } catch (error) {
     console.error('Sheet transcription error:', error);

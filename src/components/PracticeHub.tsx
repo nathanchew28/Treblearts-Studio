@@ -1,7 +1,16 @@
 import { useMemo, useRef, useState } from 'react';
-import { Camera, Music, Play, Search, Sparkles, Upload } from 'lucide-react';
+import {
+  Camera,
+  Mic,
+  Music,
+  Play,
+  Search,
+  Sparkles,
+  Upload,
+} from 'lucide-react';
 import type { ExerciseFocus, MusicExercise } from '../types/music';
 import type { LearningExperienceMode } from '../utils/kidFriendlyTheme';
+import { AudioToSheetStudio } from './AudioToSheetStudio';
 import { SheetPhotoScanner } from './SheetPhotoScanner';
 import { WarmupSoundboard } from './WarmupSoundboard';
 
@@ -46,6 +55,7 @@ export function PracticeHub({
   const [queryText, setQueryText] = useState<string>('');
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   const scannerSectionRef = useRef<HTMLDivElement | null>(null);
+  const audioToSheetRef = useRef<HTMLDivElement | null>(null);
 
   const filtered = useMemo(() => {
     const q = queryText.trim().toLowerCase();
@@ -65,6 +75,10 @@ export function PracticeHub({
 
   const scrollToScanner = () => {
     scannerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const scrollToAudioToSheet = () => {
+    audioToSheetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
@@ -141,6 +155,15 @@ export function PracticeHub({
 
             <button
               type="button"
+              onClick={scrollToAudioToSheet}
+              className="inline-flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-[#080808] bg-[#3898EC] px-5 py-2.5 text-sm font-bold text-white shadow-[3px_3px_0_#080808] cursor-pointer transition-transform hover:-translate-y-0.5"
+            >
+              <Mic className="h-4 w-4" />
+              Record Instrument &rarr; Sheet
+            </button>
+
+            <button
+              type="button"
               onClick={onOpenTeacherStudio}
               className="inline-flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-[#080808] bg-white px-4 py-2.5 text-sm font-bold text-[#080808] shadow-[3px_3px_0_#080808] cursor-pointer transition-transform hover:-translate-y-0.5"
             >
@@ -211,6 +234,16 @@ export function PracticeHub({
       {/* Instant Camera / Photo Sheet Music Scanner */}
       <div ref={scannerSectionRef}>
         <SheetPhotoScanner
+          authorId={authorId}
+          authorName={authorName}
+          onStartExercise={onSelectExercise}
+          onSaveExercise={onSaveScannedExercise}
+        />
+      </div>
+
+      {/* Record or Upload Any Instrument Sound -> MusicXML Sheet Music */}
+      <div ref={audioToSheetRef}>
+        <AudioToSheetStudio
           authorId={authorId}
           authorName={authorName}
           onStartExercise={onSelectExercise}

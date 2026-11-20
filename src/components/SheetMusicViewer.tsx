@@ -4,6 +4,7 @@ import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
 import type { MusicExercise, SongNote } from '../types/music';
 import { audioEngine } from '../utils/audioEngine';
+import { getAbcKeyAccidentals, midiToFreq } from '../utils/notationParser';
 
 interface SheetMusicViewerProps {
   exercise: MusicExercise;
@@ -83,13 +84,22 @@ export function SheetMusicViewer({
           clickListener: interactive
             ? (abcelem) => {
                 if (abcelem?.pitches?.length) {
-                  const firstPitch = abcelem.pitches[0].pitch;
+                  const keyAcc = getAbcKeyAccidentals(exercise.keySignature);
                   const scale = [0, 2, 4, 5, 7, 9, 11];
-                  const oct = Math.floor(firstPitch / 7);
-                  const step = ((firstPitch % 7) + 7) % 7;
-                  const midi = 60 + oct * 12 + scale[step];
-                  const freq = 440 * Math.pow(2, (midi - 69) / 12);
-                  audioEngine.playNote(freq, 0.35);
+                  for (const p of abcelem.pitches) {
+                    const oct = Math.floor(p.pitch / 7);
+                    const step = ((p.pitch % 7) + 7) % 7;
+                    const baseMidi = 60 + oct * 12 + scale[step];
+                    const mod = ((baseMidi % 12) + 12) % 12;
+                    let shift = 0;
+                    if (p.accidental === 'sharp') shift = 1;
+                    else if (p.accidental === 'dblsharp') shift = 2;
+                    else if (p.accidental === 'flat') shift = -1;
+                    else if (p.accidental === 'dblflat') shift = -2;
+                    else if (p.accidental === 'natural') shift = 0;
+                    else if (mod in keyAcc) shift = keyAcc[mod];
+                    audioEngine.playNote(midiToFreq(baseMidi + shift), 0.38, 0.7);
+                  }
                 }
               }
             : undefined,
@@ -102,13 +112,15 @@ export function SheetMusicViewer({
     return () => {
       cancelled = true;
     };
-  }, [exercise.id, exercise.notationText, exercise.sourceFormat, interactive]);
+  }, [exercise.id, exercise.keySignature, exercise.notationText, exercise.sourceFormat, interactive]);
 
-  // Highlight active note in ABCJS SVG
+  // Highlight active note in ABCJS SVG (lock onto voice 0 melody notes when multi-voice)
   useEffect(() => {
     const container = notationRef.current;
     if (!container) return;
-    const noteElements = container.querySelectorAll('.abcjs-note');
+    const voice0Notes = container.querySelectorAll('.abcjs-note.abcjs-v0');
+    const noteElements =
+      voice0Notes.length > 0 ? voice0Notes : container.querySelectorAll('.abcjs-note');
     noteElements.forEach((el, idx) => {
       if (idx === activeNoteIndex) {
         el.classList.add('abcjs-note-active');
@@ -124,8 +136,10 @@ export function SheetMusicViewer({
     if (!vexEl || !compactFocus) return;
     vexEl.innerHTML = '';
 
+    const melodyOnly = exercise.notes.filter((n) => !n.isRest && n.hand !== 'left');
+    const sourceNotes = melodyOnly.length > 0 ? melodyOnly : exercise.notes.filter((n) => !n.isRest);
     const windowStart = Math.max(0, activeNoteIndex);
-    const slice: SongNote[] = exercise.notes.slice(windowStart, windowStart + 4);
+    const slice: SongNote[] = sourceNotes.slice(windowStart, windowStart + 4);
     if (slice.length === 0) return;
 
     try {

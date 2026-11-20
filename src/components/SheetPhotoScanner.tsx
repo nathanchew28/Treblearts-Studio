@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Camera,
   Check,
-  ImagePlus,
   Loader2,
   Play,
   RotateCcw,
@@ -12,7 +11,8 @@ import {
 } from 'lucide-react';
 import type { DifficultyLevel, ExerciseFocus, MusicExercise } from '../types/music';
 import { audioEngine } from '../utils/audioEngine';
-import { parseAbcNotation } from '../utils/notationParser';
+import { preprocessSheetMusicPhoto, type OmrPreprocessResult } from '../utils/omrPreprocessor';
+import { midiToFreq, midiToNoteName, notesToAbc, parseAbcNotation } from '../utils/notationParser';
 import { SheetMusicViewer } from './SheetMusicViewer';
 
 interface SheetPhotoScannerProps {
@@ -50,19 +50,6 @@ const INSTRUMENT_OPTIONS = [
   'Drums / Percussion',
 ];
 
-const SAMPLE_SHEET_PHOTOS = [
-  {
-    label: 'Sherwood Fayre Page 1',
-    url: '/assets/aistudio/unnamed_4ad19d0e.jpg',
-    instrument: 'Piano / Keyboard',
-  },
-  {
-    label: 'Sherwood Fayre Page 2',
-    url: '/assets/aistudio/unnamed_d4644807.jpg',
-    instrument: 'Piano / Keyboard',
-  },
-];
-
 export function SheetPhotoScanner({
   authorId,
   authorName,
@@ -76,6 +63,8 @@ export function SheetPhotoScanner({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
   const [previewMimeType, setPreviewMimeType] = useState<string>('image/jpeg');
+  const [omrScan, setOmrScan] = useState<OmrPreprocessResult | null>(null);
+  const [showEnhancedScan, setShowEnhancedScan] = useState<boolean>(false);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [generatedExercise, setGeneratedExercise] = useState<MusicExercise | null>(null);
@@ -151,12 +140,23 @@ export function SheetPhotoScanner({
           ? ''
           : instrument);
 
+      const preprocessed = await preprocessSheetMusicPhoto(dataUrl);
+      setOmrScan(preprocessed);
+
       const response = await fetch('/api/transcribe-sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64: dataUrl,
           mimeType,
+          enhancedImageBase64: preprocessed.enhancedDataUrl,
+          enhancedMimeType: preprocessed.enhancedMimeType,
+          omrHints: {
+            staffCount: preprocessed.staffCount,
+            systemCount: preprocessed.systemCount,
+            estimatedLayout: preprocessed.estimatedLayout,
+            lineSpacingPx: preprocessed.lineSpacingPx,
+          },
           instrument: chosenInstrument,
         }),
       });
@@ -238,35 +238,24 @@ export function SheetPhotoScanner({
     reader.readAsDataURL(file);
   };
 
-  const handleSamplePhoto = async (sample: (typeof SAMPLE_SHEET_PHOTOS)[number]) => {
-    setErrorMsg(null);
-    setInstrument(sample.instrument);
-    try {
-      const res = await fetch(sample.url);
-      const blob = await res.blob();
-      const mimeType = blob.type || 'image/jpeg';
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result !== 'string') return;
-        setPreviewDataUrl(reader.result);
-        setPreviewMimeType(mimeType);
-        void transcribeImage(reader.result, mimeType, sample.instrument);
-      };
-      reader.readAsDataURL(blob);
-    } catch {
-      setErrorMsg('Could not load sample sheet photo.');
-    }
-  };
-
   const handleAudition = async () => {
     if (!generatedExercise || isAuditioning) return;
     await audioEngine.ensureToneReady();
     setIsAuditioning(true);
-    const notes = generatedExercise.notes.slice(0, 28);
+    const notes = generatedExercise.notes.slice(0, 48);
     const secPerBeat = 60 / generatedExercise.bpm;
     for (const n of notes) {
       window.setTimeout(() => {
-        audioEngine.playNote(n.freq, Math.max(0.16, n.durationBeats * secPerBeat * 0.9), 0.7);
+        const dur = Math.max(0.16, n.durationBeats * secPerBeat * 0.9);
+        const vol = n.hand === 'left' ? 0.35 : 0.7;
+        if (n.chordMidis && n.chordMidis.length > 1) {
+          const perVol = Math.max(0.14, vol / n.chordMidis.length);
+          for (const m of n.chordMidis) {
+            audioEngine.playNote(midiToFreq(m), dur, perVol);
+          }
+        } else {
+          audioEngine.playNote(n.freq, dur, vol);
+        }
       }, n.beatStart * secPerBeat * 1000);
     }
     const totalMs =
@@ -275,6 +264,36 @@ export function SheetPhotoScanner({
         900
       ) + 250;
     window.setTimeout(() => setIsAuditioning(false), totalMs);
+  };
+
+  const transposeGenerated = (semitones: number) => {
+    if (!generatedExercise) return;
+    const shiftedNotes = generatedExercise.notes.map((n) => {
+      const midi = Math.max(36, Math.min(96, n.midi + semitones));
+      const chordMidis = n.chordMidis?.map((m) => Math.max(24, Math.min(108, m + semitones)));
+      return {
+        ...n,
+        midi,
+        chordMidis,
+        noteName: midiToNoteName(midi),
+        freq: Number(midiToFreq(midi).toFixed(2)),
+      };
+    });
+    const rebuiltAbc = notesToAbc(
+      generatedExercise.title,
+      generatedExercise.composer,
+      generatedExercise.timeSignature,
+      generatedExercise.keySignature,
+      generatedExercise.bpm,
+      shiftedNotes.filter((n) => n.hand !== 'left').length > 0
+        ? shiftedNotes.filter((n) => n.hand !== 'left')
+        : shiftedNotes
+    );
+    setGeneratedExercise({
+      ...generatedExercise,
+      notationText: rebuiltAbc,
+      notes: shiftedNotes,
+    });
   };
 
   const handleSaveToLibrary = async () => {
@@ -338,8 +357,8 @@ export function SheetPhotoScanner({
         </div>
       </div>
 
-      {/* Camera / Upload / Sample Action Bar */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Camera / Upload Action Bar */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <button
           type="button"
           onClick={() => void (cameraOpen ? stopCamera() : startCamera())}
@@ -364,19 +383,6 @@ export function SheetPhotoScanner({
             className="sr-only"
           />
         </label>
-
-        {SAMPLE_SHEET_PHOTOS.map((sample) => (
-          <button
-            key={sample.label}
-            type="button"
-            disabled={isAnalyzing}
-            onClick={() => void handleSamplePhoto(sample)}
-            className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border-2 border-[#080808] bg-[#FFF0F6] px-3 py-2.5 text-xs font-bold text-[#080808] shadow-[2px_2px_0_#080808] cursor-pointer transition-transform hover:-translate-y-0.5 disabled:opacity-50"
-          >
-            <ImagePlus className="h-4 w-4 text-[#EC4899] shrink-0" />
-            <span>Scan {sample.label}</span>
-          </button>
-        ))}
       </div>
 
       {/* Live Camera Viewfinder */}
@@ -422,15 +428,34 @@ export function SheetPhotoScanner({
         <div className="grid grid-cols-1 gap-5 rounded-2xl border-2 border-[#080808] bg-[#FFFDF4] p-4 lg:grid-cols-12">
           {previewDataUrl && (
             <div className="space-y-2 lg:col-span-4">
-              <div className="text-xs font-bold text-[#080808]">Captured Sheet Photo</div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#080808]">
+                  {showEnhancedScan ? 'OMR Binary Staff Scan' : 'Captured Sheet Photo'}
+                </span>
+                {omrScan && (
+                  <button
+                    type="button"
+                    onClick={() => setShowEnhancedScan((v) => !v)}
+                    className="rounded-lg border border-[#080808] bg-[#FFF9D6] px-2 py-0.5 text-[11px] font-bold text-[#080808] cursor-pointer hover:bg-[#FFD000]"
+                  >
+                    {showEnhancedScan ? 'View Original' : 'View OMR Scan'}
+                  </button>
+                )}
+              </div>
               <div className="aspect-[4/3] overflow-hidden rounded-xl border-2 border-[#080808] bg-white">
                 <img
-                  src={previewDataUrl}
+                  src={showEnhancedScan && omrScan ? omrScan.enhancedDataUrl : previewDataUrl}
                   alt="Captured sheet music"
                   referrerPolicy="no-referrer"
                   className="h-full w-full object-contain"
                 />
               </div>
+              {omrScan && omrScan.staffCount > 0 && (
+                <div className="rounded-lg border border-[#080808]/20 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700">
+                  OMR Staff Detector: {omrScan.staffCount} staves · {omrScan.systemCount}{' '}
+                  {omrScan.estimatedLayout === 'grand-staff' ? 'grand-staff systems' : 'systems'}
+                </div>
+              )}
               {!isAnalyzing && (
                 <button
                   type="button"
@@ -450,10 +475,10 @@ export function SheetPhotoScanner({
                 <Loader2 className="h-8 w-8 animate-spin text-[#2D40EA]" />
                 <div className="space-y-1">
                   <p className="font-display text-lg font-bold text-[#080808]">
-                    Reading Notes, Clefs &amp; Rhythm...
+                    Running OMR Staff Detection &amp; Pitch Calibration...
                   </p>
                   <p className="text-xs text-slate-600">
-                    Building your Rhythm Tap, Pitch Tuner, Coordination, and Recording activities!
+                    Enhancing staff lines, checking clef &amp; key signature, and building your 4 practice games!
                   </p>
                 </div>
               </div>
@@ -476,14 +501,66 @@ export function SheetPhotoScanner({
                     </p>
                   </div>
 
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleAudition()}
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border-2 border-[#080808] bg-white px-3.5 py-1.5 text-xs font-bold text-[#080808] cursor-pointer hover:bg-[#FFF9D6]"
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      {isAuditioning ? 'Playing...' : 'Hear Melody & Chords'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick Calibration Strip for instant pitch/octave verification */}
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-[#080808] bg-white px-3 py-2 text-xs font-bold text-[#080808]">
+                  <span className="text-slate-600">Quick Calibration:</span>
                   <button
                     type="button"
-                    onClick={() => void handleAudition()}
-                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border-2 border-[#080808] bg-white px-3.5 py-1.5 text-xs font-bold text-[#080808] cursor-pointer hover:bg-[#FFF9D6]"
+                    onClick={() => transposeGenerated(-12)}
+                    className="rounded-lg border border-[#080808] bg-[#FFF9D6] px-2.5 py-1 cursor-pointer hover:bg-[#FFD000]"
                   >
-                    <Play className="h-3.5 w-3.5" />
-                    {isAuditioning ? 'Playing...' : 'Hear Melody'}
+                    -1 Octave
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => transposeGenerated(-1)}
+                    className="rounded-lg border border-[#080808] bg-[#FFF9D6] px-2.5 py-1 cursor-pointer hover:bg-[#FFD000]"
+                  >
+                    -1 Semitone
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => transposeGenerated(1)}
+                    className="rounded-lg border border-[#080808] bg-[#FFF9D6] px-2.5 py-1 cursor-pointer hover:bg-[#FFD000]"
+                  >
+                    +1 Semitone
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => transposeGenerated(12)}
+                    className="rounded-lg border border-[#080808] bg-[#FFF9D6] px-2.5 py-1 cursor-pointer hover:bg-[#FFD000]"
+                  >
+                    +1 Octave
+                  </button>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <span className="text-slate-600">Tempo:</span>
+                    <input
+                      type="number"
+                      min={45}
+                      max={200}
+                      value={generatedExercise.bpm}
+                      onChange={(e) =>
+                        setGeneratedExercise({
+                          ...generatedExercise,
+                          bpm: Math.max(45, Math.min(200, Number(e.target.value) || 96)),
+                        })
+                      }
+                      className="w-16 rounded-lg border border-[#080808] px-2 py-0.5 font-mono text-xs"
+                    />
+                    <span>BPM</span>
+                  </div>
                 </div>
 
                 <SheetMusicViewer exercise={generatedExercise} activeNoteIndex={-1} interactive />

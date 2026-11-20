@@ -63,16 +63,36 @@ function abcPitchToMidi(pitchValue: number): number {
   return 60 + octaveOffset * 12 + scale[step];
 }
 
-function getAbcKeyAccidentals(keyRoot: string): Record<number, number> {
+export function getAbcKeyAccidentals(keyRoot: string): Record<number, number> {
   const sharpOrder = [5, 0, 7, 2, 9, 4, 11]; // F C G D A E B (semitones)
   const flatOrder = [11, 4, 9, 2, 7, 0, 5];  // B E A D G C F
-  const clean = keyRoot.trim().replace(/\s+/g, '');
+  const clean = keyRoot
+    .trim()
+    .replace(/\s*(major|maj|minor|min|dorian|dor|mixolydian|mix)\s*$/i, (m) => {
+      const lower = m.toLowerCase();
+      if (lower.includes('min')) return 'm';
+      if (lower.includes('dor')) return 'dor';
+      if (lower.includes('mix')) return 'mix';
+      return '';
+    })
+    .replace(/\s+/g, '');
   const sharpCounts: Record<string, number> = {
-    C: 0, Am: 0, Ddor: 0, G: 1, Em: 1, D: 2, Bm: 2, A: 3, 'F#m': 3,
-    E: 4, 'C#m': 4, B: 5, 'G#m': 5, 'F#': 6, 'D#m': 6, 'C#': 7,
+    C: 0, Am: 0, Ddor: 0, Gmix: 0,
+    G: 1, Em: 1, Ador: 1,
+    D: 2, Bm: 2, Edor: 2,
+    A: 3, 'F#m': 3,
+    E: 4, 'C#m': 4,
+    B: 5, 'G#m': 5,
+    'F#': 6, 'D#m': 6,
+    'C#': 7,
   };
   const flatCounts: Record<string, number> = {
-    F: 1, Dm: 1, Bb: 2, Gm: 2, Eb: 3, Cm: 3, Ab: 4, Fm: 4, Db: 5, Bbm: 5, Gb: 6, Cb: 7,
+    F: 1, Dm: 1, Gdor: 1,
+    Bb: 2, Gm: 2, Cdor: 2,
+    Eb: 3, Cm: 3, Fdor: 3,
+    Ab: 4, Fm: 4,
+    Db: 5, Bbm: 5,
+    Gb: 6, Cb: 7,
   };
   const map: Record<number, number> = {};
   if (clean in sharpCounts) {
@@ -81,6 +101,39 @@ function getAbcKeyAccidentals(keyRoot: string): Record<number, number> {
     for (let i = 0; i < flatCounts[clean]; i++) map[flatOrder[i]] = -1;
   }
   return map;
+}
+
+function resolveAbcPitchMidi(
+  pitchObj: { pitch: number; accidental?: string },
+  keyAccidentals: Record<number, number>,
+  measureAccidentals: Record<number, number>
+): number {
+  const baseMidi = abcPitchToMidi(pitchObj.pitch);
+  const diatonicMod = ((baseMidi % 12) + 12) % 12;
+  let accidentalShift = 0;
+
+  if (pitchObj.accidental === 'sharp') {
+    accidentalShift = 1;
+    measureAccidentals[baseMidi] = 1;
+  } else if (pitchObj.accidental === 'dblsharp') {
+    accidentalShift = 2;
+    measureAccidentals[baseMidi] = 2;
+  } else if (pitchObj.accidental === 'flat') {
+    accidentalShift = -1;
+    measureAccidentals[baseMidi] = -1;
+  } else if (pitchObj.accidental === 'dblflat') {
+    accidentalShift = -2;
+    measureAccidentals[baseMidi] = -2;
+  } else if (pitchObj.accidental === 'natural') {
+    accidentalShift = 0;
+    measureAccidentals[baseMidi] = 0;
+  } else if (baseMidi in measureAccidentals) {
+    accidentalShift = measureAccidentals[baseMidi];
+  } else if (diatonicMod in keyAccidentals) {
+    accidentalShift = keyAccidentals[diatonicMod];
+  }
+
+  return Math.max(24, Math.min(108, baseMidi + accidentalShift));
 }
 
 export function parseAbcNotation(abcText: string): ParsedNotationResult {
@@ -103,7 +156,8 @@ export function parseAbcNotation(abcText: string): ParsedNotationResult {
 
   const notes: SongNote[] = [];
   const keyAccidentals = getAbcKeyAccidentals(keySignature);
-  let cursorBeats = 0;
+  // Track beat position independently per staff:voice across multi-line systems!
+  const staffVoiceCursors: Record<string, number> = {};
 
   if (tune && Array.isArray(tune.lines)) {
     for (const line of tune.lines) {
@@ -111,11 +165,13 @@ export function parseAbcNotation(abcText: string): ParsedNotationResult {
       for (let staffIdx = 0; staffIdx < line.staff.length; staffIdx++) {
         const staff = line.staff[staffIdx];
         if (!staff.voices) continue;
-        // Parse voice 0 primarily; if multi-staff, reset cursor per staff
-        let staffBeat = staffIdx === 0 ? cursorBeats : 0;
+        const clefType = typeof staff.clef?.type === 'string' ? staff.clef.type : '';
+        const isBassClef = clefType.toLowerCase().includes('bass');
+
         for (let voiceIdx = 0; voiceIdx < staff.voices.length; voiceIdx++) {
           const voice = staff.voices[voiceIdx];
-          let beatPos = voiceIdx === 0 ? staffBeat : 0;
+          const cursorKey = `${staffIdx}:${voiceIdx}`;
+          let beatPos = staffVoiceCursors[cursorKey] ?? 0;
           const measureAccidentals: Record<number, number> = {};
 
           for (const el of voice) {
@@ -131,41 +187,24 @@ export function parseAbcNotation(abcText: string): ParsedNotationResult {
               const isRest = Boolean(el.rest) || !el.pitches || el.pitches.length === 0;
 
               if (!isRest && el.pitches && el.pitches.length > 0) {
-                const topPitch = el.pitches[el.pitches.length - 1];
-                const baseMidi = abcPitchToMidi(topPitch.pitch);
-                const diatonicMod = ((baseMidi % 12) + 12) % 12;
-                let accidentalShift = 0;
+                const resolvedMidis = el.pitches
+                  .map((p) => resolveAbcPitchMidi(p, keyAccidentals, measureAccidentals))
+                  .sort((a, b) => a - b);
 
-                if (topPitch.accidental === 'sharp') {
-                  accidentalShift = 1;
-                  measureAccidentals[baseMidi] = 1;
-                } else if (topPitch.accidental === 'dblsharp') {
-                  accidentalShift = 2;
-                  measureAccidentals[baseMidi] = 2;
-                } else if (topPitch.accidental === 'flat') {
-                  accidentalShift = -1;
-                  measureAccidentals[baseMidi] = -1;
-                } else if (topPitch.accidental === 'dblflat') {
-                  accidentalShift = -2;
-                  measureAccidentals[baseMidi] = -2;
-                } else if (topPitch.accidental === 'natural') {
-                  accidentalShift = 0;
-                  measureAccidentals[baseMidi] = 0;
-                } else if (baseMidi in measureAccidentals) {
-                  accidentalShift = measureAccidentals[baseMidi];
-                } else if (diatonicMod in keyAccidentals) {
-                  accidentalShift = keyAccidentals[diatonicMod];
-                }
-
-                const midi = Math.max(36, Math.min(96, baseMidi + accidentalShift));
-                const hand: HandAssignment =
-                  staffIdx > 0 || voiceIdx > 0 || midi < 57 ? 'left' : 'right';
+                const melodyMidi = resolvedMidis[resolvedMidis.length - 1];
+                const isExplicitSecondaryVoice = staffIdx > 0 || voiceIdx > 0 || isBassClef;
+                const hand: HandAssignment = isExplicitSecondaryVoice
+                  ? 'left'
+                  : melodyMidi < 55
+                    ? 'left'
+                    : 'right';
 
                 notes.push({
                   id: `n_${notes.length + 1}`,
-                  midi,
-                  noteName: midiToNoteName(midi),
-                  freq: Number(midiToFreq(midi).toFixed(2)),
+                  midi: melodyMidi,
+                  chordMidis: resolvedMidis.length > 1 ? resolvedMidis : undefined,
+                  noteName: midiToNoteName(melodyMidi),
+                  freq: Number(midiToFreq(melodyMidi).toFixed(2)),
                   beatStart: Number(beatPos.toFixed(3)),
                   durationBeats: Number(durationBeats.toFixed(3)),
                   measure: measureNum,
@@ -177,9 +216,7 @@ export function parseAbcNotation(abcText: string): ParsedNotationResult {
               beatPos += durationBeats;
             }
           }
-          if (staffIdx === 0 && voiceIdx === 0) {
-            cursorBeats = beatPos;
-          }
+          staffVoiceCursors[cursorKey] = beatPos;
         }
       }
     }
@@ -188,7 +225,9 @@ export function parseAbcNotation(abcText: string): ParsedNotationResult {
   // Fallback simple pattern if ABC had no extractable note events
   const finalNotes =
     notes.length > 0
-      ? notes.slice(0, 400).sort((a, b) => a.beatStart - b.beatStart)
+      ? notes
+          .slice(0, 400)
+          .sort((a, b) => (a.beatStart !== b.beatStart ? a.beatStart - b.beatStart : b.midi - a.midi))
       : createFallbackNotes();
 
   return {
@@ -300,21 +339,33 @@ export function parseMusicXmlString(xmlText: string, fallbackTitle = 'Uploaded S
             const alter = Number(child.querySelector('pitch > alter')?.textContent?.trim() || '0');
             const octave = Number(child.querySelector('pitch > octave')?.textContent?.trim() || '4');
             const semitone = PITCH_LETTER_TO_SEMITONE[step.toUpperCase()] ?? 0;
-            const midi = Math.max(36, Math.min(96, (octave + 1) * 12 + semitone + alter));
+            const midi = Math.max(24, Math.min(108, (octave + 1) * 12 + semitone + alter));
             const staffNum = Number(child.querySelector('staff')?.textContent?.trim() || '1');
-            const hand: HandAssignment = staffNum >= 2 || midi < 57 ? 'left' : 'right';
+            const hand: HandAssignment = staffNum >= 2 || midi < 55 ? 'left' : 'right';
 
-            notes.push({
-              id: `xml_${notes.length + 1}`,
-              midi,
-              noteName: midiToNoteName(midi),
-              freq: Number(midiToFreq(midi).toFixed(2)),
-              beatStart: Number(absoluteBeat.toFixed(3)),
-              durationBeats: Number(durationBeats.toFixed(3)),
-              measure: mIdx + 1,
-              hand,
-              isRest: false,
-            });
+            if (isChord && notes.length > 0) {
+              const prev = notes[notes.length - 1];
+              const merged = Array.from(new Set([...(prev.chordMidis ?? [prev.midi]), midi])).sort(
+                (a, b) => a - b
+              );
+              const topMidi = merged[merged.length - 1];
+              prev.chordMidis = merged.length > 1 ? merged : undefined;
+              prev.midi = topMidi;
+              prev.noteName = midiToNoteName(topMidi);
+              prev.freq = Number(midiToFreq(topMidi).toFixed(2));
+            } else {
+              notes.push({
+                id: `xml_${notes.length + 1}`,
+                midi,
+                noteName: midiToNoteName(midi),
+                freq: Number(midiToFreq(midi).toFixed(2)),
+                beatStart: Number(absoluteBeat.toFixed(3)),
+                durationBeats: Number(durationBeats.toFixed(3)),
+                measure: mIdx + 1,
+                hand,
+                isRest: false,
+              });
+            }
           }
 
           if (!isChord && !isGrace) {
@@ -414,17 +465,24 @@ export function notesToAbc(
   bpm: number,
   notes: SongNote[]
 ): string {
-  const beatsPerMeasure = parseTimeSignatureBeats(timeSignature);
   let body = '';
   let currentMeasure = 1;
-  const maxNotes = notes.slice(0, 64);
+  const maxNotes = notes.slice(0, 96);
 
   for (const note of maxNotes) {
     if (note.measure > currentMeasure) {
       body += ' | ';
       currentMeasure = note.measure;
     }
-    body += `${midiToAbcToken(note.midi, note.durationBeats)} `;
+    if (note.chordMidis && note.chordMidis.length > 1) {
+      const eighths = Math.max(1, Math.round(note.durationBeats * 2));
+      const chordPitches = note.chordMidis
+        .map((m) => midiToAbcToken(m, 0.5))
+        .join('');
+      body += `[${chordPitches}]${eighths === 2 ? '2' : eighths === 1 ? '' : eighths} `;
+    } else {
+      body += `${midiToAbcToken(note.midi, note.durationBeats)} `;
+    }
   }
   if (!body.trim()) {
     body = 'C2 D2 E2 F2 | G4 G4 |]';
@@ -442,6 +500,150 @@ export function notesToAbc(
     `K:${keySignature}`,
     body,
   ].join('\n');
+}
+
+const KEY_TO_FIFTHS: Record<string, number> = {
+  Cb: -7, Gb: -6, Db: -5, Ab: -4, Eb: -3, Bb: -2, F: -1,
+  Dm: -1, Gm: -2, Cm: -3, Fm: -4, Bbm: -5,
+  C: 0, Am: 0, Ddor: 0,
+  G: 1, Em: 1,
+  D: 2, Bm: 2,
+  A: 3, 'F#m': 3,
+  E: 4, 'C#m': 4,
+  B: 5, 'G#m': 5,
+  'F#': 6,
+};
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function midiToXmlStepAlterOctave(midi: number): { step: string; alter: number; octave: number } {
+  const names = [
+    { step: 'C', alter: 0 },
+    { step: 'C', alter: 1 },
+    { step: 'D', alter: 0 },
+    { step: 'E', alter: -1 },
+    { step: 'E', alter: 0 },
+    { step: 'F', alter: 0 },
+    { step: 'F', alter: 1 },
+    { step: 'G', alter: 0 },
+    { step: 'G', alter: 1 },
+    { step: 'A', alter: 0 },
+    { step: 'B', alter: -1 },
+    { step: 'B', alter: 0 },
+  ];
+  const clamped = Math.max(24, Math.min(108, Math.round(midi)));
+  const entry = names[clamped % 12];
+  return {
+    step: entry.step,
+    alter: entry.alter,
+    octave: Math.floor(clamped / 12) - 1,
+  };
+}
+
+function durationDivisionsToType(divs: number): { type: string; dot: boolean } {
+  if (divs >= 16) return { type: 'whole', dot: false };
+  if (divs >= 12) return { type: 'half', dot: true };
+  if (divs >= 8) return { type: 'half', dot: false };
+  if (divs >= 6) return { type: 'quarter', dot: true };
+  if (divs >= 4) return { type: 'quarter', dot: false };
+  if (divs >= 3) return { type: 'eighth', dot: true };
+  if (divs >= 2) return { type: 'eighth', dot: false };
+  return { type: '16th', dot: false };
+}
+
+export function notesToMusicXml(params: {
+  title: string;
+  composer: string;
+  timeSignature: string;
+  keySignature: string;
+  bpm: number;
+  notes: SongNote[];
+}): string {
+  const divisions = 4; // 4 divisions = 1 quarter note
+  const [tsBeatsStr, tsBeatTypeStr] = params.timeSignature.split('/');
+  const tsBeats = parseInt(tsBeatsStr || '4', 10) || 4;
+  const tsBeatType = parseInt(tsBeatTypeStr || '4', 10) || 4;
+  const beatsPerMeasure = (tsBeats * 4) / tsBeatType;
+  const measureDivisions = Math.round(beatsPerMeasure * divisions);
+  const fifths = KEY_TO_FIFTHS[params.keySignature] ?? 0;
+
+  const sorted = [...params.notes]
+    .filter((n) => !n.isRest)
+    .sort((a, b) => a.beatStart - b.beatStart);
+
+  const maxMeasure = Math.max(
+    1,
+    sorted.reduce((m, n) => Math.max(m, n.measure), 1)
+  );
+
+  const measureXmlParts: string[] = [];
+
+  for (let m = 1; m <= maxMeasure; m++) {
+    const measureStartBeat = (m - 1) * beatsPerMeasure;
+    const measureNotes = sorted.filter((n) => n.measure === m);
+
+    let cursorDiv = 0;
+    const noteElements: string[] = [];
+
+    for (const note of measureNotes) {
+      const startDiv = Math.max(
+        cursorDiv,
+        Math.min(measureDivisions - 1, Math.round((note.beatStart - measureStartBeat) * divisions))
+      );
+      if (startDiv > cursorDiv) {
+        const restDiv = startDiv - cursorDiv;
+        const { type, dot } = durationDivisionsToType(restDiv);
+        noteElements.push(
+          `<note><rest/><duration>${restDiv}</duration><voice>1</voice><type>${type}</type>${dot ? '<dot/>' : ''}</note>`
+        );
+        cursorDiv += restDiv;
+      }
+
+      const rawDurDiv = Math.max(1, Math.round(note.durationBeats * divisions));
+      const durDiv = Math.min(rawDurDiv, Math.max(1, measureDivisions - cursorDiv));
+      const { type, dot } = durationDivisionsToType(durDiv);
+      const pitches = note.chordMidis && note.chordMidis.length > 0 ? note.chordMidis : [note.midi];
+
+      pitches.forEach((midiVal, pIdx) => {
+        const { step, alter, octave } = midiToXmlStepAlterOctave(midiVal);
+        noteElements.push(
+          `<note>${pIdx > 0 ? '<chord/>' : ''}<pitch><step>${step}</step>${alter !== 0 ? `<alter>${alter}</alter>` : ''}<octave>${octave}</octave></pitch><duration>${durDiv}</duration><voice>1</voice><type>${type}</type>${dot ? '<dot/>' : ''}</note>`
+        );
+      });
+
+      cursorDiv += durDiv;
+    }
+
+    if (cursorDiv < measureDivisions) {
+      const remDiv = measureDivisions - cursorDiv;
+      const { type, dot } = durationDivisionsToType(remDiv);
+      noteElements.push(
+        `<note><rest/><duration>${remDiv}</duration><voice>1</voice><type>${type}</type>${dot ? '<dot/>' : ''}</note>`
+      );
+    }
+
+    const attrs =
+      m === 1
+        ? `<attributes><divisions>${divisions}</divisions><key><fifths>${fifths}</fifths></key><time><beats>${tsBeats}</beats><beat-type>${tsBeatType}</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes><direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${params.bpm}</per-minute></metronome></direction-type><sound tempo="${params.bpm}"/></direction>`
+        : '';
+
+    measureXmlParts.push(`<measure number="${m}">${attrs}${noteElements.join('')}</measure>`);
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1">
+  <work><work-title>${escapeXml(params.title)}</work-title></work>
+  <identification><creator type="composer">${escapeXml(params.composer)}</creator></identification>
+  <part-list><score-part id="P1"><part-name>Transcribed Instrument</part-name></score-part></part-list>
+  <part id="P1">${measureXmlParts.join('')}</part>
+</score-partwise>`;
 }
 
 function createFallbackNotes(): SongNote[] {

@@ -49,19 +49,19 @@ C:Repertoire 3 · Track 19
 M:3/4
 L:1/8
 Q:1/4=104
-K:C
+K:G
 V:1 clef=treble
-E2 c2 c2 | c2 B A G F | E2 c2 c2 | c6 |
+G2 d2 d2 | d2 c B A G | G2 e2 e2 | e6 |
 w:Weav-ing the rib-bons to-ge-ther, Dance the may-pole.
-E2 c2 c2 | c2 B A G F | B2 G2 G2 | A6 |]
+G2 d2 d2 | d2 c B A G | d2 A2 A2 | A4 z2 |]
 w:Weav-ing the rib-bons to-ge-ther, Red, blue and gold.
-V:2 clef=treble
-[CEG]6 | [CEG]6 | [CFA]6 | [CFA]6 |
-[CEG]6 | [CEG]6 | [B,FG]6 | [B,FG]6 |]`,
+V:2 clef=bass
+[G,,B,,D,]6 | [G,,B,,D,]6 | [G,,C,E,]6 | [G,,C,E,]6 |
+[G,,B,,D,]6 | [G,,B,,D,]6 | [F,,C,D,]6 | [F,,C,D,]4 z2 |]`,
     difficulty: 'Beginner',
     focus: 'Complete',
     coachingTip:
-      'Lilting 3/4 Maypole waltz from Sheet Photo 1! Sing "Weaving the ribbons together" while playing the flowing eighth-note run and steady left-hand I–IV–V7 chords.',
+      'Lilting 3/4 Maypole waltz in G Major! Start cleanly on G4 (finger 1), leap to D5, glide smoothly through D–C–B–A–G, and anchor the left-hand I (G)–IV (C)–V7 (D7) bass chords.',
     coverImage: COVER_SHERWOOD_1,
     playsCount: 120,
   }),
@@ -73,19 +73,19 @@ C:Repertoire 3 · Track 19 (Part 2)
 M:3/4
 L:1/8
 Q:1/4=104
-K:C
+K:G
 V:1 clef=treble
-E2 c2 c2 | c2 B A G F | E2 c2 c2 | c6 |
+G2 d2 d2 | d2 c B A G | G2 e2 e2 | e6 |
 w:Weav-ing the rib-bons to-ge-ther, Dance the may-pole.
-E2 c2 c2 | c2 B A G F | B2 A2 G2 | G6 |]
+G2 d2 d2 | d2 c B A G | c2 B2 A2 | G6 |]
 w:Weav-ing the rib-bons to-ge-ther, Like times of old.
-V:2 clef=treble
-[CEG]6 | [CEG]6 | [CFA]6 | [CFA]6 |
-[CEG]6 | [CEG]6 | [B,FG]6 | [CEG]6 |]`,
+V:2 clef=bass
+[G,,B,,D,]6 | [G,,B,,D,]6 | [G,,C,E,]6 | [G,,C,E,]6 |
+[G,,B,,D,]6 | [G,,B,,D,]6 | [F,,C,D,]6 | [G,,B,,D,]6 |]`,
     difficulty: 'Beginner',
     focus: 'Coordination',
     coachingTip:
-      'Continuation lesson from Sheet Photo 2! Focus on the gentle step-down cadence "Like times of old" (B–A–G) landing cleanly on the home I chord.',
+      'Second ending from Sheet Photo 2 in G Major! Step smoothly down C5–B4–A4 ("Like times of old") and resolve warmly onto home G4 with the bass I chord.',
     coverImage: COVER_SHERWOOD_2,
     playsCount: 95,
   }),

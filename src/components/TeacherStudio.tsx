@@ -12,6 +12,7 @@ import {
   parseMusicXmlFile,
 } from '../utils/notationParser';
 import { audioEngine } from '../utils/audioEngine';
+import { AudioToSheetStudio } from './AudioToSheetStudio';
 import { SheetMusicViewer } from './SheetMusicViewer';
 import { SheetPhotoScanner } from './SheetPhotoScanner';
 
@@ -273,6 +274,15 @@ export function TeacherStudio({
 
       {/* Camera / Photo Scanner inside Teacher Studio */}
       <SheetPhotoScanner
+        compact
+        authorId={authorId}
+        authorName={authorName}
+        onStartExercise={onPracticeExercise}
+        onSaveExercise={onPublishExercise}
+      />
+
+      {/* Audio-to-Sheet Transcription inside Teacher Studio */}
+      <AudioToSheetStudio
         compact
         authorId={authorId}
         authorName={authorName}

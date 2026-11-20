@@ -7,6 +7,7 @@ export type HandAssignment = 'right' | 'left' | 'percussion';
 export interface SongNote {
   id: string;
   midi: number;
+  chordMidis?: number[];
   noteName: string;
   freq: number;
   beatStart: number;

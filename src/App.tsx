@@ -27,6 +27,7 @@ import type {
   RecordedPerformance,
   UserProfile,
 } from './types/music';
+import { OpenSourceLabsHub } from './components/labs/OpenSourceLabsHub';
 import { LeaderboardView } from './components/LeaderboardView';
 import { PracticeHub } from './components/PracticeHub';
 import { PracticeStage } from './components/PracticeStage';
@@ -350,6 +351,27 @@ export default function App() {
     );
   };
 
+  const handleAwardLabXp = useCallback(
+    async (xp: number) => {
+      const nextProfile: UserProfile = {
+        ...profile,
+        xp: profile.xp + xp,
+        exercisesCompleted: profile.exercisesCompleted + 1,
+      };
+      setProfile(nextProfile);
+      if (user) {
+        try {
+          await updateUserProfileStats(user.uid, nextProfile);
+        } catch {
+          // Non-fatal local sync
+        }
+      } else {
+        localStorage.setItem(LOCAL_PROFILE_KEY, JSON.stringify(nextProfile));
+      }
+    },
+    [profile, user]
+  );
+
   return (
     <div className="min-h-screen bg-[#FFFDF4] text-[#080808]">
       <TopBar
@@ -400,6 +422,17 @@ export default function App() {
             onSelectExercise={handleSelectExercise}
             onSaveScannedExercise={handlePublishExercise}
             onOpenTeacherStudio={() => setActiveTab('teacher')}
+          />
+        )}
+
+        {activeTab === 'labs' && (
+          <OpenSourceLabsHub
+            exercises={allExercises}
+            authorId={user?.uid || 'guest-musician'}
+            authorName={profile.displayName}
+            onLaunchAsExercise={handleSelectExercise}
+            onSaveExercise={handlePublishExercise}
+            onAwardLabXp={(xp) => void handleAwardLabXp(xp)}
           />
         )}
 
