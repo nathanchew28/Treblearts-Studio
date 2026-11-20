@@ -168,6 +168,18 @@ export async function transcribeAudioToSheet(
   options.onProgress?.(5, 'Decoding & resampling instrument audio to 22.05 kHz...');
   const resampledBuffer = await decodeAndResampleTo22050(audioBlob);
 
+  const pcm = resampledBuffer.getChannelData(0);
+  let peakAmp = 0;
+  for (let i = 0; i < pcm.length; i++) {
+    const abs = Math.abs(pcm[i]);
+    if (abs > peakAmp) peakAmp = abs;
+  }
+  if (peakAmp < 0.003) {
+    throw new Error(
+      'The recording is too quiet to detect notes. Move closer to your instrument or increase input gain.'
+    );
+  }
+
   options.onProgress?.(18, 'Loading Spotify Basic Pitch neural transcription model...');
   const basicPitch = getSharedBasicPitch();
   try {
