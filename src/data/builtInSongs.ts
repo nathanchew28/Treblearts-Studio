@@ -18,7 +18,7 @@ function buildStarterExercise(params: {
   return {
     id: params.id,
     authorId: 'cadence-conservatory',
-    authorName: 'Cadence Conservatory',
+    authorName: 'Treblearts Studio',
     title: parsed.title,
     composer: parsed.composer,
     sourceFormat: 'abc',

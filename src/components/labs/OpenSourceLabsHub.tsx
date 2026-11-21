@@ -90,7 +90,7 @@ export function OpenSourceLabsHub({
             </h1>
           </div>
           <p className="max-w-md text-xs font-medium text-white/90">
-            Explore interactive music programming, live coding, piano coaching, sight-reading, ear training, and score engraving — every XP point and song exports right back into Cadence Studio.
+            Explore interactive music programming, live coding, piano coaching, sight-reading, ear training, and score engraving — every XP point and song exports right back into Treblearts Studio.
           </p>
         </div>
 

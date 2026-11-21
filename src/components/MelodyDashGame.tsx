@@ -1042,7 +1042,7 @@ export function MelodyDashGame({
                 className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border-2 border-white/80 bg-[#0B132B] px-4 py-2 text-xs font-bold text-white cursor-pointer hover:bg-[#1C2541]"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Exit to Cadence Studio
+                Exit to Treblearts Studio
               </button>
 
               {/* Bespoke Inline SVG Title Lockup */}
@@ -1391,7 +1391,7 @@ export function MelodyDashGame({
                       onClick={onExitToStudio}
                       className="min-h-[44px] w-full rounded-xl border border-slate-700 bg-transparent px-5 py-2 text-xs font-bold text-slate-300 cursor-pointer hover:text-white"
                     >
-                      Exit to Cadence Studio
+                      Exit to Treblearts Studio
                     </button>
                   </div>
                 </div>

@@ -35,7 +35,7 @@ export function TopBar({
           onClick={() => onSelectTab('practice')}
           className="font-display text-xl font-bold tracking-tight text-[#080808] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#080808] rounded"
         >
-          Cadence Studio
+          Treblearts Studio
         </button>
 
         <nav className="hidden md:flex items-center gap-2" aria-label="Primary Navigation">
