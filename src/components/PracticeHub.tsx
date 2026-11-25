@@ -7,6 +7,7 @@ import {
   Play,
   Search,
   Sliders,
+  X,
 } from 'lucide-react';
 import type { ExerciseFocus, MusicExercise, PitchCalibrationSettings } from '../types/music';
 import type { LearningExperienceMode } from '../utils/kidFriendlyTheme';
@@ -74,6 +75,55 @@ export function PracticeHub({
 
   return (
     <section className="mx-auto max-w-[1360px] px-6 py-6 space-y-5">
+      {/* Top Exercise Library Search Bar */}
+      <div className="flex flex-col gap-2 rounded-2xl border-2 border-[#080808] bg-white p-3 shadow-[4px_4px_0_#080808] sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#080808]" />
+          <input
+            type="text"
+            value={queryText}
+            onChange={(e) => {
+              const nextVal = e.target.value;
+              setQueryText(nextVal);
+              if (nextVal.trim() && practiceView !== 'songs') {
+                setPracticeView('songs');
+              }
+            }}
+            placeholder="Search exercise library by title or composer..."
+            aria-label="Filter exercise library by title or composer"
+            className="min-h-[42px] w-full rounded-xl border-2 border-[#080808] bg-[#FFFDF4] py-2 pl-10 pr-10 text-sm font-medium text-[#080808] placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#2D40EA]"
+          />
+          {queryText && (
+            <button
+              type="button"
+              onClick={() => setQueryText('')}
+              aria-label="Clear search query"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-600 hover:bg-[#FFD000] hover:text-[#080808] cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 px-1 text-xs font-bold text-[#080808] tabular-nums sm:shrink-0">
+          <span>
+            {filtered.length} of {exercises.length} exercises
+          </span>
+          {(queryText || focusFilter !== 'All') && (
+            <button
+              type="button"
+              onClick={() => {
+                setQueryText('');
+                setFocusFilter('All');
+              }}
+              className="rounded-lg border-2 border-[#080808] bg-[#FFF9D6] px-2.5 py-1 text-xs font-bold text-[#080808] cursor-pointer hover:bg-[#FFD000]"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Compact Studio Command Header */}
       <div className="rounded-2xl border-2 border-[#080808] bg-[#FFD000] p-5 shadow-[4px_4px_0_#080808] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -213,36 +263,37 @@ export function PracticeHub({
             </div>
           )}
         </div>
-
-        {practiceView === 'songs' && (
-          <div className="relative w-full sm:w-72">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#080808]" />
-            <input
-              type="search"
-              value={queryText}
-              onChange={(e) => setQueryText(e.target.value)}
-              placeholder="Search songs or composers..."
-              aria-label="Search exercises"
-              className="w-full rounded-xl border-2 border-[#080808] bg-white py-2 pl-9 pr-3 text-sm font-medium text-[#080808] placeholder:text-slate-500 focus:bg-[#FFFDF4] focus:outline-none"
-            />
-          </div>
-        )}
       </div>
 
       {/* Main Content Area: Either Song Grid OR Warmup Soundboard (Zero Stacking Scroll) */}
       {practiceView === 'warmup' ? (
         <WarmupSoundboard />
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border-2 border-[#080808] bg-white p-10 text-center text-sm font-medium text-slate-700">
-          No matching exercises found. Try clearing your filter or switch to the{' '}
-          <button
-            type="button"
-            onClick={() => onOpenCreateTool('scanner')}
-            className="font-bold text-[#2D40EA] underline cursor-pointer"
-          >
-            Create &amp; Scan
-          </button>{' '}
-          tab to scan a sheet photo or upload notation.
+        <div className="rounded-2xl border-2 border-[#080808] bg-white p-10 text-center text-sm font-medium text-slate-700 space-y-3">
+          <p>
+            No matching exercises found{queryText.trim() ? ` for "${queryText.trim()}"` : ''}.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {(queryText || focusFilter !== 'All') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQueryText('');
+                  setFocusFilter('All');
+                }}
+                className="min-h-[40px] rounded-xl border-2 border-[#080808] bg-[#FFD000] px-4 py-1.5 text-xs font-bold text-[#080808] cursor-pointer hover:bg-[#FFF9D6]"
+              >
+                Clear Search &amp; Filters
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onOpenCreateTool('scanner')}
+              className="min-h-[40px] rounded-xl border-2 border-[#080808] bg-[#2D40EA] px-4 py-1.5 text-xs font-bold text-white cursor-pointer hover:opacity-95"
+            >
+              Open Create &amp; Scan
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
