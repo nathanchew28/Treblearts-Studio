@@ -29,14 +29,12 @@ import type {
   UserProfile,
 } from './types/music';
 import { OpenSourceLabsHub } from './components/labs/OpenSourceLabsHub';
-import { LeaderboardView } from './components/LeaderboardView';
+import { CommunityHub, type CommunitySection } from './components/CommunityHub';
+import { CreateScanHub, type CreateScanTool } from './components/CreateScanHub';
 import { MelodyDashGame } from './components/MelodyDashGame';
 import { PitchCalibrationModal } from './components/PitchCalibrationModal';
 import { PracticeHub } from './components/PracticeHub';
 import { PracticeStage } from './components/PracticeStage';
-import { ProgressDashboard } from './components/ProgressDashboard';
-import { SharedPerformancesView } from './components/SharedPerformancesView';
-import { TeacherStudio } from './components/TeacherStudio';
 import { TopBar, type NavTab } from './components/TopBar';
 import { audioEngine } from './utils/audioEngine';
 import type { LearningExperienceMode } from './utils/kidFriendlyTheme';
@@ -99,6 +97,8 @@ export default function App() {
   );
   const [spotlightPerf, setSpotlightPerf] = useState<RecordedPerformance | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [createTool, setCreateTool] = useState<CreateScanTool>('scanner');
+  const [communitySection, setCommunitySection] = useState<CommunitySection>('progress');
   const [calibrationOpen, setCalibrationOpen] = useState<boolean>(false);
   const [pitchCalibration, setPitchCalibration] = useState<PitchCalibrationSettings>(() =>
     audioEngine.getPitchCalibration()
@@ -116,7 +116,8 @@ export default function App() {
     const shareId = params.get('share');
     if (!shareId) return;
 
-    setActiveTab('stage');
+    setActiveTab('community');
+    setCommunitySection('stage');
     void fetchPerformanceById(shareId)
       .then((perf) => {
         if (perf) {
@@ -442,16 +443,30 @@ export default function App() {
         {activeTab === 'practice' && !selectedExercise && (
           <PracticeHub
             exercises={allExercises}
-            authorId={user?.uid || 'guest-musician'}
-            authorName={profile.displayName}
             learningMode={learningMode}
             onChangeLearningMode={handleChangeLearningMode}
             onSelectExercise={handleSelectExercise}
-            onSaveScannedExercise={handlePublishExercise}
-            onOpenTeacherStudio={() => setActiveTab('teacher')}
+            onOpenCreateTool={(tool) => {
+              setCreateTool(tool);
+              setActiveTab('create');
+            }}
             calibration={pitchCalibration}
             onOpenCalibration={() => setCalibrationOpen(true)}
             onOpenGame={() => setActiveTab('game')}
+          />
+        )}
+
+        {activeTab === 'create' && (
+          <CreateScanHub
+            activeTool={createTool}
+            onChangeTool={setCreateTool}
+            authorId={user?.uid || 'guest-musician'}
+            authorName={profile.displayName}
+            myExercises={myExercises}
+            onPublishExercise={handlePublishExercise}
+            onDeleteExercise={handleDeleteExercise}
+            onPracticeExercise={handleSelectExercise}
+            onAwardXp={(xp) => void handleAwardLabXp(xp)}
           />
         )}
 
@@ -466,37 +481,17 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'teacher' && (
-          <TeacherStudio
-            authorId={user?.uid || 'guest-musician'}
-            authorName={profile.displayName}
-            myExercises={myExercises}
-            onPublishExercise={handlePublishExercise}
-            onDeleteExercise={handleDeleteExercise}
-            onPracticeExercise={handleSelectExercise}
-          />
-        )}
-
-        {activeTab === 'progress' && (
-          <ProgressDashboard
+        {activeTab === 'community' && (
+          <CommunityHub
+            activeSection={communitySection}
+            onChangeSection={setCommunitySection}
             profile={profile}
             attempts={attempts}
             exercises={allExercises}
             onPracticeExercise={handleSelectExercise}
-          />
-        )}
-
-        {activeTab === 'leaderboard' && (
-          <LeaderboardView
-            entries={leaderboard}
-            currentUser={profile}
+            leaderboardEntries={leaderboard}
             isSignedIn={Boolean(user)}
             onSignIn={handleAuthAction}
-          />
-        )}
-
-        {activeTab === 'stage' && (
-          <SharedPerformancesView
             performances={performances}
             spotlightPerformance={spotlightPerf}
             onApplaud={handleApplaud}

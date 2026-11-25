@@ -29,6 +29,14 @@ import type {
 import { audioEngine } from '../utils/audioEngine';
 import { getNoteColorInfo, type LearningExperienceMode } from '../utils/kidFriendlyTheme';
 import { midiToFreq, midiToNoteName } from '../utils/notationParser';
+import { MetronomeWidget, parseBeatsPerBar } from './MetronomeWidget';
+import { PitchReferenceWidget } from './PitchReferenceWidget';
+import {
+  PomodoroNoticeBanner,
+  PomodoroPracticeTimerCard,
+  usePomodoroTimer,
+} from './PomodoroPracticeTimer';
+import { RhythmTrainerModule } from './RhythmTrainerModule';
 import { SheetMusicViewer } from './SheetMusicViewer';
 
 interface PracticeStageProps {
@@ -79,11 +87,14 @@ interface HitParticle {
   life: number;
 }
 
-const ACTIVITY_TABS: { id: ActivityType; label: string; subtitle: string }[] = [
+type StageTab = ActivityType | 'rhythm_trainer';
+
+const ACTIVITY_TABS: { id: StageTab; label: string; subtitle: string }[] = [
   { id: 'rhythm', label: '1. Rhythm Tap & Knock', subtitle: 'Mic knocks or Spacebar' },
   { id: 'pitch', label: '2. Pitch & Instrument', subtitle: 'Live chromatic tuner' },
   { id: 'coordination', label: '3. Two-Hand Coordination', subtitle: 'Left pulse + Right melody' },
   { id: 'performance', label: '4. Record & Share Stage', subtitle: 'Full take & friend link' },
+  { id: 'rhythm_trainer', label: '5. Rhythm Trainer', subtitle: 'Pattern drills + mic timing' },
 ];
 
 const PIANO_KEYS = [
@@ -115,8 +126,14 @@ export function PracticeStage({
 }: PracticeStageProps) {
   const isKids = learningMode === 'kids';
   const [midiDeviceName, setMidiDeviceName] = useState<string | null>(null);
-  const [activity, setActivity] = useState<ActivityType>('rhythm');
-  const [tempoScale, setTempoScale] = useState<number>(() => (learningMode === 'kids' ? 85 : 100));
+  const [stageTab, setStageTab] = useState<StageTab>('rhythm');
+  const [sidebarTab, setSidebarTab] = useState<'metrics' | 'tools'>('metrics');
+  const activity: ActivityType = stageTab === 'rhythm_trainer' ? 'rhythm' : stageTab;
+  const [practiceBpm, setPracticeBpm] = useState<number>(() =>
+    Math.max(30, Math.min(240, Math.round((exercise.bpm * (learningMode === 'kids' ? 85 : 100)) / 100)))
+  );
+  const [practiceTimeSignature, setPracticeTimeSignature] = useState<string>(exercise.timeSignature);
+  const [exerciseBeatIndex, setExerciseBeatIndex] = useState<number>(-1);
   const [metronomeOn, setMetronomeOn] = useState<boolean>(true);
   const [guideAudioOn, setGuideAudioOn] = useState<boolean>(true);
   const [countInOn, setCountInOn] = useState<boolean>(true);
@@ -149,6 +166,7 @@ export function PracticeStage({
   const [elapsedMs, setElapsedMs] = useState<number>(0);
   const [totalSongPracticeSec, setTotalSongPracticeSec] = useState<number>(0);
   const [timerExpired, setTimerExpired] = useState<boolean>(false);
+  const pomodoro = usePomodoroTimer();
 
   // Recording & Sharing state
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -183,8 +201,10 @@ export function PracticeStage({
   const timerLastTickRef = useRef<number>(0);
   const particlesRef = useRef<HitParticle[]>([]);
   const mascotBounceRef = useRef<number>(0);
+  const trainerTransientHandlerRef = useRef<((rms: number, ts: number) => void) | null>(null);
 
-  const effectiveBpm = Math.round((exercise.bpm * tempoScale) / 100);
+  const effectiveBpm = practiceBpm;
+  const tempoScale = Math.round((practiceBpm / Math.max(1, exercise.bpm)) * 100);
   const beatsPerSecond = effectiveBpm / 60;
 
   // Build cues for the selected activity directly from the exercise's parsed notation
@@ -313,11 +333,16 @@ export function PracticeStage({
     elapsedMsRef.current = 0;
     setElapsedMs(0);
     setTimerExpired(false);
+    setExerciseBeatIndex(-1);
   }, [baseCues, accompanimentCues, countInOn]);
 
   useEffect(() => {
     setTotalSongPracticeSec(0);
-  }, [exercise.id]);
+    setPracticeBpm(
+      Math.max(30, Math.min(240, Math.round((exercise.bpm * (isKids ? 85 : 100)) / 100)))
+    );
+    setPracticeTimeSignature(exercise.timeSignature);
+  }, [exercise.id, exercise.bpm, exercise.timeSignature, isKids]);
 
   useEffect(() => {
     resetSession();
@@ -455,6 +480,7 @@ export function PracticeStage({
     isRunningRef.current = false;
     setIsRunning(false);
     setCountInBeat(null);
+    setExerciseBeatIndex(-1);
 
     let finalEvaluated = evaluatedRef.current;
     for (const c of cuesRef.current) {
@@ -583,8 +609,9 @@ export function PracticeStage({
     try {
       await audioEngine.startMicrophone({
         tapThreshold,
-        onTransient: () => {
+        onTransient: (rms, ts) => {
           setLastMicKnockAt(Date.now());
+          trainerTransientHandlerRef.current?.(rms, ts);
           if (!isRunningRef.current) return;
           if (activity === 'rhythm' || activity === 'performance') {
             handleRhythmStrike('any', false);
@@ -708,6 +735,7 @@ export function PracticeStage({
     isRunningRef.current = false;
     setIsRunning(false);
     setCountInBeat(null);
+    setExerciseBeatIndex(-1);
     if (isRecording) {
       try {
         const res = await audioEngine.stopRecording();
@@ -727,6 +755,8 @@ export function PracticeStage({
       if (e.repeat) return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      if (stageTab === 'rhythm_trainer') return;
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -753,7 +783,7 @@ export function PracticeStage({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activity, handlePitchInput, handleRhythmStrike]);
+  }, [activity, stageTab, handlePitchInput, handleRhythmStrike]);
 
   // 60fps Game Loop + Canvas Renderer
   useEffect(() => {
@@ -801,9 +831,11 @@ export function PracticeStage({
           const wholeBeat = Math.floor(beatNow);
           if (wholeBeat > lastMetronomeBeatRef.current) {
             lastMetronomeBeatRef.current = wholeBeat;
+            const tsNum = parseBeatsPerBar(practiceTimeSignature);
+            const beatInBar = ((wholeBeat % tsNum) + tsNum) % tsNum;
+            setExerciseBeatIndex(beatInBar);
             if (metronomeOn || beatNow < 0) {
-              const tsNum = parseInt(exercise.timeSignature.split('/')[0] || '4', 10) || 4;
-              const isDownbeat = ((wholeBeat % tsNum) + tsNum) % tsNum === 0;
+              const isDownbeat = beatInBar === 0;
               audioEngine.playMetronomeClick(isDownbeat);
             }
           }
@@ -894,7 +926,7 @@ export function PracticeStage({
       // Measure grid lines
       const startBeat = Math.floor(beatNow - 1);
       const endBeat = Math.ceil(beatNow + (width - hitX) / pxPerBeat + 1);
-      const tsNum = parseInt(exercise.timeSignature.split('/')[0] || '4', 10) || 4;
+      const tsNum = parseBeatsPerBar(practiceTimeSignature);
 
       for (let b = startBeat; b <= endBeat; b++) {
         if (b < 0) continue;
@@ -1137,7 +1169,7 @@ export function PracticeStage({
   }, [
     activity,
     beatsPerSecond,
-    exercise.timeSignature,
+    practiceTimeSignature,
     finishRun,
     guideAudioOn,
     guidedStepPitch,
@@ -1253,27 +1285,28 @@ export function PracticeStage({
             </button>
           )}
 
-          {!isRunning ? (
-            <button
-              type="button"
-              onClick={startRun}
-              className="min-h-[42px] flex items-center gap-2 rounded-xl border-2 border-[#080808] bg-[#EC4899] px-5 py-2 text-xs font-bold text-white cursor-pointer transition-transform hover:-translate-y-0.5 shadow-[2px_2px_0_#080808]"
-            >
-              <Play className="h-4 w-4" />
-              {activity === 'performance' && micEnabled
-                ? 'Record Performance'
-                : 'Start Exercise'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={stopRun}
-              className="min-h-[42px] flex items-center gap-2 rounded-xl border-2 border-[#080808] bg-[#FF6565] px-5 py-2 text-xs font-bold text-white cursor-pointer shadow-[2px_2px_0_#080808]"
-            >
-              <Pause className="h-4 w-4" />
-              Stop
-            </button>
-          )}
+          {stageTab !== 'rhythm_trainer' &&
+            (!isRunning ? (
+              <button
+                type="button"
+                onClick={startRun}
+                className="min-h-[42px] flex items-center gap-2 rounded-xl border-2 border-[#080808] bg-[#EC4899] px-5 py-2 text-xs font-bold text-white cursor-pointer transition-transform hover:-translate-y-0.5 shadow-[2px_2px_0_#080808]"
+              >
+                <Play className="h-4 w-4" />
+                {activity === 'performance' && micEnabled
+                  ? 'Record Performance'
+                  : 'Start Exercise'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={stopRun}
+                className="min-h-[42px] flex items-center gap-2 rounded-xl border-2 border-[#080808] bg-[#FF6565] px-5 py-2 text-xs font-bold text-white cursor-pointer shadow-[2px_2px_0_#080808]"
+              >
+                <Pause className="h-4 w-4" />
+                Stop
+              </button>
+            ))}
         </div>
       </div>
 
@@ -1283,17 +1316,28 @@ export function PracticeStage({
         </div>
       )}
 
-      {/* Segmented Activity Switcher (4 Activities Auto-Generated for Every Song) */}
-      <div className="grid grid-cols-1 gap-2 rounded-2xl border-2 border-[#080808] bg-white p-2 shadow-[3px_3px_0_#080808] sm:grid-cols-2 lg:grid-cols-4">
+      {pomodoro.expiredNotice && (
+        <PomodoroNoticeBanner
+          notice={pomodoro.expiredNotice}
+          breakDurationMin={pomodoro.breakDurationMin}
+          focusDurationMin={pomodoro.focusDurationMin}
+          onStartBreak={() => pomodoro.selectPhase('break', true)}
+          onStartFocus={() => pomodoro.selectPhase('focus', true)}
+          onDismiss={pomodoro.dismissNotice}
+        />
+      )}
+
+      {/* Segmented Activity Switcher (4 Song Activities + Dedicated Rhythm Trainer) */}
+      <div className="grid grid-cols-1 gap-2 rounded-2xl border-2 border-[#080808] bg-white p-2 shadow-[3px_3px_0_#080808] sm:grid-cols-2 lg:grid-cols-5">
         {ACTIVITY_TABS.map((tab) => {
-          const active = activity === tab.id;
+          const active = stageTab === tab.id;
           return (
             <button
               key={tab.id}
               type="button"
               onClick={() => {
                 void stopRun();
-                setActivity(tab.id);
+                setStageTab(tab.id);
               }}
               className={`min-h-[46px] rounded-xl px-3.5 py-2 text-left cursor-pointer transition-colors ${
                 active
@@ -1314,12 +1358,29 @@ export function PracticeStage({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Interactive Stage (8 cols) */}
         <div className="space-y-4 lg:col-span-8">
-          <SheetMusicViewer
-            exercise={exercise}
-            activeNoteIndex={activeNoteIndex}
-            interactive
-            compactFocus={activity === 'pitch' || activity === 'performance'}
-          />
+          {stageTab === 'rhythm_trainer' ? (
+            <RhythmTrainerModule
+              bpm={effectiveBpm}
+              timeSignature={practiceTimeSignature}
+              metronomeClickOn={metronomeOn}
+              micEnabled={micEnabled}
+              liveRms={liveRms}
+              tapThreshold={tapThreshold}
+              onToggleMic={toggleMic}
+              onChangeTapThreshold={setTapThreshold}
+              registerTransientHandler={(fn) => {
+                trainerTransientHandlerRef.current = fn;
+              }}
+              onCompleteDrillAttempt={onCompleteAttempt}
+            />
+          ) : (
+            <>
+              <SheetMusicViewer
+                exercise={exercise}
+                activeNoteIndex={activeNoteIndex}
+                interactive
+                compactFocus={activity === 'pitch' || activity === 'performance'}
+              />
 
           {/* Live 60fps Highway Canvas */}
           <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
@@ -1563,10 +1624,72 @@ export function PracticeStage({
               </div>
             </div>
           )}
+            </>
+          )}
         </div>
 
         {/* Right Control & Concept Deck (4 cols) */}
         <aside className="space-y-4 lg:col-span-4">
+          {/* Compact Sidebar Deck Switcher */}
+          <div
+            role="tablist"
+            aria-label="Practice sidebar panels"
+            className="grid grid-cols-2 gap-1.5 rounded-xl border-2 border-[#080808] bg-white p-1.5 shadow-[4px_4px_0_#080808]"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sidebarTab === 'metrics'}
+              onClick={() => setSidebarTab('metrics')}
+              className={`min-h-[40px] rounded-lg px-2.5 py-1.5 text-xs font-bold cursor-pointer transition-colors ${
+                sidebarTab === 'metrics'
+                  ? 'bg-[#080808] text-[#FFE828]'
+                  : 'text-[#080808] hover:bg-[#FFF9D6]'
+              }`}
+            >
+              Metrics & Controls
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sidebarTab === 'tools'}
+              onClick={() => setSidebarTab('tools')}
+              className={`min-h-[40px] rounded-lg px-2.5 py-1.5 text-xs font-bold cursor-pointer transition-colors ${
+                sidebarTab === 'tools'
+                  ? 'bg-[#080808] text-[#FFE828]'
+                  : 'text-[#080808] hover:bg-[#FFF9D6]'
+              }`}
+            >
+              Timer · Metronome · Pitch
+            </button>
+          </div>
+
+          <div className={sidebarTab === 'tools' ? 'space-y-4' : 'hidden'}>
+            {/* Pomodoro Session Practice Timer */}
+            <PomodoroPracticeTimerCard timer={pomodoro} />
+
+            {/* Configurable Metronome Widget */}
+            <MetronomeWidget
+              bpm={practiceBpm}
+              songDefaultBpm={exercise.bpm}
+              onChangeBpm={setPracticeBpm}
+              timeSignature={practiceTimeSignature}
+              songDefaultTimeSignature={exercise.timeSignature}
+              onChangeTimeSignature={setPracticeTimeSignature}
+              clickEnabled={metronomeOn}
+              onToggleClick={setMetronomeOn}
+              exerciseRunning={isRunning}
+              exerciseBeatIndex={exerciseBeatIndex}
+            />
+
+            {/* Sustained Pitch-Reference Tone Generator */}
+            <PitchReferenceWidget
+              songStartMidi={baseCues[0]?.midi ?? 60}
+              exerciseRunning={isRunning}
+            />
+          </div>
+
+          <div className={sidebarTab === 'metrics' ? 'space-y-4' : 'hidden'}>
           {/* Live Scoreboard */}
           <div className="rounded-2xl border-2 border-[#080808] bg-white p-5 shadow-[4px_4px_0_#080808] space-y-4">
             <div className="flex items-center justify-between">
@@ -1749,9 +1872,13 @@ export function PracticeStage({
                   <button
                     key={preset.val}
                     type="button"
-                    onClick={() => setTempoScale(preset.val)}
+                    onClick={() =>
+                      setPracticeBpm(
+                        Math.max(30, Math.min(240, Math.round((exercise.bpm * preset.val) / 100)))
+                      )
+                    }
                     className={`rounded-md py-1 text-[11px] font-medium cursor-pointer border transition-colors ${
-                      tempoScale === preset.val
+                      Math.abs(tempoScale - preset.val) <= 2
                         ? 'border-blue-600 bg-blue-50 text-blue-800'
                         : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                     }`}
@@ -1766,8 +1893,12 @@ export function PracticeStage({
                 min={55}
                 max={125}
                 step={5}
-                value={tempoScale}
-                onChange={(e) => setTempoScale(Number(e.target.value))}
+                value={Math.max(55, Math.min(125, tempoScale))}
+                onChange={(e) =>
+                  setPracticeBpm(
+                    Math.max(30, Math.min(240, Math.round((exercise.bpm * Number(e.target.value)) / 100)))
+                  )
+                }
                 className="w-full accent-blue-700"
               />
             </div>
@@ -1862,6 +1993,7 @@ export function PracticeStage({
             <p className="pt-1 text-xs text-slate-400">
               Prepared by {exercise.authorName}
             </p>
+          </div>
           </div>
         </aside>
       </div>

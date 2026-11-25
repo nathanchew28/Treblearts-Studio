@@ -54,6 +54,10 @@ class StudioAudioEngine {
   private synth: Tone.PolySynth | null = null;
   private clickHigh: Tone.MembraneSynth | null = null;
   private clickLow: Tone.MembraneSynth | null = null;
+  private refOsc: Tone.Oscillator | null = null;
+  private refFilter: Tone.Filter | null = null;
+  private refGain: Tone.Gain | null = null;
+  private isRefToneActive = false;
   private pitchCalibration: PitchCalibrationSettings = loadStoredCalibration();
   private calibrationListeners = new Set<(cal: PitchCalibrationSettings) => void>();
 
@@ -126,6 +130,50 @@ class StudioAudioEngine {
       this.synth.triggerAttackRelease('C6', 0.09, undefined, 0.35);
     } else if (type === 'good') {
       this.synth.triggerAttackRelease('G5', 0.08, undefined, 0.28);
+    }
+  }
+
+  async startReferenceTone(
+    freq: number,
+    timbre: 'sine' | 'triangle' | 'sawtooth' = 'sine',
+    volume = 0.25
+  ): Promise<void> {
+    await this.ensureToneReady();
+    const safeFreq = Math.max(40, Math.min(2400, freq));
+    const safeVol = Math.max(0.02, Math.min(0.45, volume * 0.35));
+
+    if (!this.refOsc || !this.refGain || !this.refFilter) {
+      this.refGain = new Tone.Gain(0).toDestination();
+      this.refFilter = new Tone.Filter(1800, 'lowpass').connect(this.refGain);
+      this.refOsc = new Tone.Oscillator(safeFreq, timbre).connect(this.refFilter);
+      this.refOsc.start();
+    }
+
+    this.refOsc.type = timbre;
+    this.refFilter.frequency.rampTo(timbre === 'sawtooth' ? 1450 : 2800, 0.03);
+    this.refOsc.frequency.rampTo(safeFreq, 0.025);
+    this.refGain.gain.rampTo(safeVol, 0.05);
+    this.isRefToneActive = true;
+  }
+
+  updateReferenceTone(
+    freq: number,
+    timbre: 'sine' | 'triangle' | 'sawtooth' = 'sine',
+    volume = 0.25
+  ): void {
+    if (!this.isRefToneActive || !this.refOsc || !this.refGain || !this.refFilter) return;
+    const safeFreq = Math.max(40, Math.min(2400, freq));
+    const safeVol = Math.max(0.02, Math.min(0.45, volume * 0.35));
+    this.refOsc.type = timbre;
+    this.refFilter.frequency.rampTo(timbre === 'sawtooth' ? 1450 : 2800, 0.03);
+    this.refOsc.frequency.rampTo(safeFreq, 0.025);
+    this.refGain.gain.rampTo(safeVol, 0.04);
+  }
+
+  stopReferenceTone(): void {
+    this.isRefToneActive = false;
+    if (this.refGain) {
+      this.refGain.gain.rampTo(0, 0.06);
     }
   }
 

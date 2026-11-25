@@ -7,6 +7,7 @@ interface SharedPerformancesViewProps {
   spotlightPerformance: RecordedPerformance | null;
   onApplaud: (performanceId: string) => Promise<void>;
   onClearSpotlight: () => void;
+  embedded?: boolean;
 }
 
 export function SharedPerformancesView({
@@ -14,6 +15,7 @@ export function SharedPerformancesView({
   spotlightPerformance,
   onApplaud,
   onClearSpotlight,
+  embedded = false,
 }: SharedPerformancesViewProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [applaudedIds, setApplaudedIds] = useState<Set<string>>(new Set());
@@ -103,15 +105,17 @@ export function SharedPerformancesView({
   };
 
   return (
-    <section className="mx-auto max-w-[1360px] px-6 py-8 space-y-8">
-      <div className="rounded-3xl border-2 border-[#080808] bg-[#FFD000] p-6 shadow-[4px_4px_0_#080808]">
-        <h1 className="font-display text-3xl font-bold text-[#080808]">
-          Shared Performances Stage
-        </h1>
-        <p className="mt-1 text-sm font-medium text-[#080808]/90">
-          Listen to student and friend recordings, applaud great takes, and copy shareable performance links.
-        </p>
-      </div>
+    <section className={embedded ? 'space-y-6' : 'mx-auto max-w-[1360px] px-6 py-8 space-y-8'}>
+      {!embedded && (
+        <div className="rounded-3xl border-2 border-[#080808] bg-[#FFD000] p-6 shadow-[4px_4px_0_#080808]">
+          <h1 className="font-display text-3xl font-bold text-[#080808]">
+            Shared Performances Stage
+          </h1>
+          <p className="mt-1 text-sm font-medium text-[#080808]/90">
+            Listen to student and friend recordings, applaud great takes, and copy shareable performance links.
+          </p>
+        </div>
+      )}
 
       {spotlightPerformance && (
         <div className="space-y-3 rounded-2xl border-2 border-[#080808] bg-[#FFF9D6] p-5 shadow-[4px_4px_0_#080808]">

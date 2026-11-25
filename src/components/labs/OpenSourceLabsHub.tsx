@@ -7,12 +7,10 @@ import {
   Code2,
   Eye,
   FileMusic,
-  Mic,
   Piano,
   Sparkles,
 } from 'lucide-react';
 import type { MusicExercise } from '../../types/music';
-import { AudioToSheetStudio } from '../AudioToSheetStudio';
 import { ChromeMusicLabSuite } from './ChromeMusicLabSuite';
 import { EagerEarLab } from './EagerEarLab';
 import { JalmusLab } from './JalmusLab';
@@ -25,7 +23,6 @@ import { SolfegeLab } from './SolfegeLab';
 import { SonicPiLab } from './SonicPiLab';
 
 export type RepoLabId =
-  | 'basicpitch'
   | 'musicblocks'
   | 'chromelab'
   | 'melodino'
@@ -54,7 +51,6 @@ const REPO_TABS: {
   subtitle: string;
   icon: typeof Blocks;
 }[] = [
-  { id: 'basicpitch', label: 'Basic Pitch', subtitle: 'Audio to Sheet Music', icon: Mic },
   { id: 'musicblocks', label: 'Music Blocks', subtitle: 'Turtle & Code Blocks', icon: Blocks },
   { id: 'chromelab', label: 'Chrome Music Lab', subtitle: 'Song Maker & Spectrogram', icon: Activity },
   { id: 'melodino', label: 'Melodino', subtitle: 'Light-Up Piano Quests', icon: Piano },
@@ -75,15 +71,15 @@ export function OpenSourceLabsHub({
   onSaveExercise,
   onAwardLabXp,
 }: OpenSourceLabsHubProps) {
-  const [activeRepo, setActiveRepo] = useState<RepoLabId>('basicpitch');
+  const [activeRepo, setActiveRepo] = useState<RepoLabId>('musicblocks');
 
   return (
-    <section className="mx-auto max-w-[1360px] px-6 py-8 space-y-6">
-      <div className="rounded-3xl border-2 border-[#080808] bg-[#2D40EA] p-6 text-white shadow-[5px_5px_0_#080808] space-y-4">
+    <section className="mx-auto max-w-[1360px] px-6 py-6 space-y-5">
+      <div className="rounded-3xl border-2 border-[#080808] bg-[#2D40EA] p-5 text-white shadow-[5px_5px_0_#080808] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-wider text-[#FFD000]">
-              11 Open-Source Music Tools Unified in One Studio Tab
+              10 Open-Source Music Tools Unified in One Tab
             </p>
             <h1 className="font-display text-2xl font-bold sm:text-3xl">
               Open-Source Music Labs
@@ -127,16 +123,6 @@ export function OpenSourceLabsHub({
           })}
         </div>
       </div>
-
-      {activeRepo === 'basicpitch' && (
-        <AudioToSheetStudio
-          authorId={authorId}
-          authorName={authorName}
-          onStartExercise={onLaunchAsExercise}
-          onSaveExercise={onSaveExercise}
-          onAwardXp={onAwardLabXp}
-        />
-      )}
 
       {activeRepo === 'musicblocks' && (
         <MusicBlocksLab

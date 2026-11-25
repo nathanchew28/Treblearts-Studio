@@ -7,6 +7,7 @@ interface ProgressDashboardProps {
   attempts: PracticeAttempt[];
   exercises: MusicExercise[];
   onPracticeExercise: (exercise: MusicExercise) => void;
+  embedded?: boolean;
 }
 
 export function ProgressDashboard({
@@ -14,6 +15,7 @@ export function ProgressDashboard({
   attempts,
   exercises,
   onPracticeExercise,
+  embedded = false,
 }: ProgressDashboardProps) {
   const rank = getRankForXp(profile.xp);
   const avgAccuracy = attempts.length
@@ -21,15 +23,17 @@ export function ProgressDashboard({
     : 0;
 
   return (
-    <section className="mx-auto max-w-[1360px] px-6 py-8 space-y-8">
-      <div className="rounded-3xl border-2 border-[#080808] bg-[#FFD000] p-6 shadow-[4px_4px_0_#080808]">
-        <h1 className="font-display text-3xl font-bold text-[#080808]">
-          Progress &amp; Conservatory Rewards
-        </h1>
-        <p className="mt-1 text-sm font-medium text-[#080808]/90">
-          Track mastery across rhythm, pitch, and coordination activities as you level up your studio rank.
-        </p>
-      </div>
+    <section className={embedded ? 'space-y-6' : 'mx-auto max-w-[1360px] px-6 py-8 space-y-8'}>
+      {!embedded && (
+        <div className="rounded-3xl border-2 border-[#080808] bg-[#FFD000] p-6 shadow-[4px_4px_0_#080808]">
+          <h1 className="font-display text-3xl font-bold text-[#080808]">
+            Progress &amp; Conservatory Rewards
+          </h1>
+          <p className="mt-1 text-sm font-medium text-[#080808]/90">
+            Track mastery across rhythm, pitch, and coordination activities as you level up your studio rank.
+          </p>
+        </div>
+      )}
 
       {/* KPI Strip */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

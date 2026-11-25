@@ -25,6 +25,7 @@ interface TeacherStudioProps {
   ) => Promise<void>;
   onDeleteExercise: (exerciseId: string) => Promise<void>;
   onPracticeExercise: (exercise: MusicExercise) => void;
+  embedded?: boolean;
 }
 
 const QUICK_TEMPLATES: { label: string; abc: string }[] = [
@@ -71,6 +72,7 @@ export function TeacherStudio({
   onPublishExercise,
   onDeleteExercise,
   onPracticeExercise,
+  embedded = false,
 }: TeacherStudioProps) {
   const [abcInput, setAbcInput] = useState<string>(QUICK_TEMPLATES[0].abc);
   const [sourceFormat, setSourceFormat] = useState<SourceFormat>('abc');
@@ -261,34 +263,36 @@ export function TeacherStudio({
   };
 
   return (
-    <section className="mx-auto max-w-[1360px] px-6 py-8 space-y-8">
-      <div className="rounded-3xl border-2 border-[#080808] bg-[#FFD000] p-6 shadow-[4px_4px_0_#080808]">
-        <h1 className="font-display text-3xl font-bold text-[#080808]">
-          Teacher Exercise Studio
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm font-medium text-[#080808]/90">
-          Snap a sheet music photo or upload MusicXML (.musicxml, .xml, .mxl), ABC notation (.abc), or MIDI (.mid) scores.
-          Every song automatically generates Rhythm Tap, Live Pitch, Two-Hand Coordination, and Stage Recording!
-        </p>
-      </div>
+    <section className={embedded ? 'space-y-6' : 'mx-auto max-w-[1360px] px-6 py-8 space-y-8'}>
+      {!embedded && (
+        <>
+          <div className="rounded-3xl border-2 border-[#080808] bg-[#FFD000] p-6 shadow-[4px_4px_0_#080808]">
+            <h1 className="font-display text-3xl font-bold text-[#080808]">
+              Teacher Exercise Studio
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm font-medium text-[#080808]/90">
+              Snap a sheet music photo or upload MusicXML (.musicxml, .xml, .mxl), ABC notation (.abc), or MIDI (.mid) scores.
+              Every song automatically generates Rhythm Tap, Live Pitch, Two-Hand Coordination, and Stage Recording!
+            </p>
+          </div>
 
-      {/* Camera / Photo Scanner inside Teacher Studio */}
-      <SheetPhotoScanner
-        compact
-        authorId={authorId}
-        authorName={authorName}
-        onStartExercise={onPracticeExercise}
-        onSaveExercise={onPublishExercise}
-      />
+          <SheetPhotoScanner
+            compact
+            authorId={authorId}
+            authorName={authorName}
+            onStartExercise={onPracticeExercise}
+            onSaveExercise={onPublishExercise}
+          />
 
-      {/* Audio-to-Sheet Transcription inside Teacher Studio */}
-      <AudioToSheetStudio
-        compact
-        authorId={authorId}
-        authorName={authorName}
-        onStartExercise={onPracticeExercise}
-        onSaveExercise={onPublishExercise}
-      />
+          <AudioToSheetStudio
+            compact
+            authorId={authorId}
+            authorName={authorName}
+            onStartExercise={onPracticeExercise}
+            onSaveExercise={onPublishExercise}
+          />
+        </>
+      )}
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         {/* Left: Upload & Notation Editor */}

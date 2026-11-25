@@ -8,6 +8,7 @@ interface LeaderboardViewProps {
   currentUser: UserProfile;
   isSignedIn: boolean;
   onSignIn: () => void;
+  embedded?: boolean;
 }
 
 export function LeaderboardView({
@@ -15,6 +16,7 @@ export function LeaderboardView({
   currentUser,
   isSignedIn,
   onSignIn,
+  embedded = false,
 }: LeaderboardViewProps) {
   const [roleFilter, setRoleFilter] = useState<'all' | 'student' | 'teacher'>('all');
 
@@ -32,34 +34,58 @@ export function LeaderboardView({
   }, [entries, currentUser, isSignedIn, roleFilter]);
 
   return (
-    <section className="mx-auto max-w-[1360px] px-6 py-8 space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4 rounded-3xl border-2 border-[#080808] bg-[#FFD000] p-6 shadow-[4px_4px_0_#080808]">
-        <div>
-          <h1 className="font-display text-3xl font-bold text-[#080808]">
-            Social Conservatory Leaderboard
-          </h1>
-          <p className="mt-1 text-sm font-medium text-[#080808]/90">
-            Earn XP from accurate rhythm taps, in-tune pitch runs, and shared performances.
-          </p>
-        </div>
+    <section className={embedded ? 'space-y-5' : 'mx-auto max-w-[1360px] px-6 py-8 space-y-6'}>
+      {!embedded ? (
+        <div className="flex flex-wrap items-end justify-between gap-4 rounded-3xl border-2 border-[#080808] bg-[#FFD000] p-6 shadow-[4px_4px_0_#080808]">
+          <div>
+            <h1 className="font-display text-3xl font-bold text-[#080808]">
+              Social Conservatory Leaderboard
+            </h1>
+            <p className="mt-1 text-sm font-medium text-[#080808]/90">
+              Earn XP from accurate rhythm taps, in-tune pitch runs, and shared performances.
+            </p>
+          </div>
 
-        <div className="flex items-center gap-1 rounded-xl border-2 border-[#080808] bg-white p-1">
-          {(['all', 'student', 'teacher'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setRoleFilter(mode)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize cursor-pointer transition-colors ${
-                roleFilter === mode
-                  ? 'bg-[#3898EC] text-white'
-                  : 'text-[#080808] hover:bg-[#FFF9D6]'
-              }`}
-            >
-              {mode === 'all' ? 'All Musicians' : `${mode}s`}
-            </button>
-          ))}
+          <div className="flex items-center gap-1 rounded-xl border-2 border-[#080808] bg-white p-1">
+            {(['all', 'student', 'teacher'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setRoleFilter(mode)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize cursor-pointer transition-colors ${
+                  roleFilter === mode
+                    ? 'bg-[#3898EC] text-white'
+                    : 'text-[#080808] hover:bg-[#FFF9D6]'
+                }`}
+              >
+                {mode === 'all' ? 'All Musicians' : `${mode}s`}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-semibold text-slate-700">
+            Earn XP from accurate rhythm taps, in-tune pitch runs, Melody Dash, and shared performances.
+          </p>
+          <div className="flex items-center gap-1 rounded-xl border-2 border-[#080808] bg-white p-1">
+            {(['all', 'student', 'teacher'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setRoleFilter(mode)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize cursor-pointer transition-colors ${
+                  roleFilter === mode
+                    ? 'bg-[#3898EC] text-white'
+                    : 'text-[#080808] hover:bg-[#FFF9D6]'
+                }`}
+              >
+                {mode === 'all' ? 'All Musicians' : `${mode}s`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!isSignedIn && (
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border-2 border-[#080808] bg-white px-5 py-4 shadow-[3px_3px_0_#080808]">
