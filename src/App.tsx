@@ -32,6 +32,7 @@ import { OpenSourceLabsHub } from './components/labs/OpenSourceLabsHub';
 import { CommunityHub, type CommunitySection } from './components/CommunityHub';
 import { CreateScanHub, type CreateScanTool } from './components/CreateScanHub';
 import { MelodyDashGame } from './components/MelodyDashGame';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { PitchCalibrationModal } from './components/PitchCalibrationModal';
 import { PracticeHub } from './components/PracticeHub';
 import { PracticeStage } from './components/PracticeStage';
@@ -513,6 +514,8 @@ export default function App() {
           );
         }}
       />
+
+      <OfflineIndicator />
     </div>
   );
 }

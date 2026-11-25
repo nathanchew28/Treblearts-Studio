@@ -1,4 +1,5 @@
 import type { User } from 'firebase/auth';
+import { PWAInstallButton } from './PWAInstallButton';
 
 export type NavTab = 'practice' | 'create' | 'game' | 'labs' | 'community';
 
@@ -59,7 +60,8 @@ export function TopBar({
           })}
         </nav>
 
-        <div className="flex items-center shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <PWAInstallButton />
           <button
             type="button"
             onClick={onAuthAction}
