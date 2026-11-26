@@ -1,6 +1,4 @@
 import ABCJS from 'abcjs';
-import { Midi } from '@tonejs/midi';
-import JSZip from 'jszip';
 import type { HandAssignment, SongNote, SourceFormat } from '../types/music';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -255,6 +253,7 @@ export async function parseMusicXmlFile(file: File): Promise<ParsedNotationResul
   let xmlText = '';
   if (file.name.toLowerCase().endsWith('.mxl')) {
     const buf = await file.arrayBuffer();
+    const { default: JSZip } = await import('jszip');
     const zip = await JSZip.loadAsync(buf);
     const xmlEntry = Object.keys(zip.files).find(
       (name) => name.endsWith('.xml') && !name.startsWith('META-INF')
@@ -401,7 +400,10 @@ export function parseMusicXmlString(xmlText: string, fallbackTitle = 'Uploaded S
 }
 
 export async function parseMidiFile(file: File): Promise<ParsedNotationResult> {
-  const buffer = await file.arrayBuffer();
+  const [{ Midi }, buffer] = await Promise.all([
+    import('@tonejs/midi'),
+    file.arrayBuffer(),
+  ]);
   const midi = new Midi(buffer);
 
   const bpm = Math.min(

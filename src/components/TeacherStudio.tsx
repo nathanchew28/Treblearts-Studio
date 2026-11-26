@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Suspense, lazy, useMemo, useState } from 'react';
 import { FileUp, Play, Plus, Square, Trash2 } from 'lucide-react';
 import type {
   DifficultyLevel,
@@ -12,9 +12,14 @@ import {
   parseMusicXmlFile,
 } from '../utils/notationParser';
 import { audioEngine } from '../utils/audioEngine';
-import { AudioToSheetStudio } from './AudioToSheetStudio';
 import { SheetMusicViewer } from './SheetMusicViewer';
-import { SheetPhotoScanner } from './SheetPhotoScanner';
+
+const AudioToSheetStudio = lazy(() =>
+  import('./AudioToSheetStudio').then((m) => ({ default: m.AudioToSheetStudio }))
+);
+const SheetPhotoScanner = lazy(() =>
+  import('./SheetPhotoScanner').then((m) => ({ default: m.SheetPhotoScanner }))
+);
 
 interface TeacherStudioProps {
   authorId: string;
@@ -276,21 +281,23 @@ export function TeacherStudio({
             </p>
           </div>
 
-          <SheetPhotoScanner
-            compact
-            authorId={authorId}
-            authorName={authorName}
-            onStartExercise={onPracticeExercise}
-            onSaveExercise={onPublishExercise}
-          />
+          <Suspense fallback={null}>
+            <SheetPhotoScanner
+              compact
+              authorId={authorId}
+              authorName={authorName}
+              onStartExercise={onPracticeExercise}
+              onSaveExercise={onPublishExercise}
+            />
 
-          <AudioToSheetStudio
-            compact
-            authorId={authorId}
-            authorName={authorName}
-            onStartExercise={onPracticeExercise}
-            onSaveExercise={onPublishExercise}
-          />
+            <AudioToSheetStudio
+              compact
+              authorId={authorId}
+              authorName={authorName}
+              onStartExercise={onPracticeExercise}
+              onSaveExercise={onPublishExercise}
+            />
+          </Suspense>
         </>
       )}
 

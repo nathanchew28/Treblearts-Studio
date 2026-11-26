@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import {
   Activity,
   Award,
@@ -11,16 +11,37 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { MusicExercise } from '../../types/music';
-import { ChromeMusicLabSuite } from './ChromeMusicLabSuite';
-import { EagerEarLab } from './EagerEarLab';
-import { JalmusLab } from './JalmusLab';
-import { MelodinoLab } from './MelodinoLab';
-import { MinuetLab } from './MinuetLab';
-import { MuseScoreLab } from './MuseScoreLab';
-import { MusicBlocksLab } from './MusicBlocksLab';
-import { PianoBoosterLab } from './PianoBoosterLab';
-import { SolfegeLab } from './SolfegeLab';
-import { SonicPiLab } from './SonicPiLab';
+
+const ChromeMusicLabSuite = lazy(() =>
+  import('./ChromeMusicLabSuite').then((m) => ({ default: m.ChromeMusicLabSuite }))
+);
+const EagerEarLab = lazy(() =>
+  import('./EagerEarLab').then((m) => ({ default: m.EagerEarLab }))
+);
+const JalmusLab = lazy(() =>
+  import('./JalmusLab').then((m) => ({ default: m.JalmusLab }))
+);
+const MelodinoLab = lazy(() =>
+  import('./MelodinoLab').then((m) => ({ default: m.MelodinoLab }))
+);
+const MinuetLab = lazy(() =>
+  import('./MinuetLab').then((m) => ({ default: m.MinuetLab }))
+);
+const MuseScoreLab = lazy(() =>
+  import('./MuseScoreLab').then((m) => ({ default: m.MuseScoreLab }))
+);
+const MusicBlocksLab = lazy(() =>
+  import('./MusicBlocksLab').then((m) => ({ default: m.MusicBlocksLab }))
+);
+const PianoBoosterLab = lazy(() =>
+  import('./PianoBoosterLab').then((m) => ({ default: m.PianoBoosterLab }))
+);
+const SolfegeLab = lazy(() =>
+  import('./SolfegeLab').then((m) => ({ default: m.SolfegeLab }))
+);
+const SonicPiLab = lazy(() =>
+  import('./SonicPiLab').then((m) => ({ default: m.SonicPiLab }))
+);
 
 export type RepoLabId =
   | 'musicblocks'
@@ -124,62 +145,70 @@ export function OpenSourceLabsHub({
         </div>
       </div>
 
-      {activeRepo === 'musicblocks' && (
-        <MusicBlocksLab
-          authorId={authorId}
-          authorName={authorName}
-          onLaunchAsExercise={onLaunchAsExercise}
-        />
-      )}
+      <Suspense
+        fallback={
+          <div className="rounded-2xl border-2 border-[#080808] bg-white p-8 text-center text-sm font-bold text-[#080808] shadow-[4px_4px_0_#080808]">
+            Loading music lab...
+          </div>
+        }
+      >
+        {activeRepo === 'musicblocks' && (
+          <MusicBlocksLab
+            authorId={authorId}
+            authorName={authorName}
+            onLaunchAsExercise={onLaunchAsExercise}
+          />
+        )}
 
-      {activeRepo === 'chromelab' && (
-        <ChromeMusicLabSuite
-          authorId={authorId}
-          authorName={authorName}
-          onLaunchAsExercise={onLaunchAsExercise}
-        />
-      )}
+        {activeRepo === 'chromelab' && (
+          <ChromeMusicLabSuite
+            authorId={authorId}
+            authorName={authorName}
+            onLaunchAsExercise={onLaunchAsExercise}
+          />
+        )}
 
-      {activeRepo === 'melodino' && (
-        <MelodinoLab onAwardXp={onAwardLabXp} />
-      )}
+        {activeRepo === 'melodino' && (
+          <MelodinoLab onAwardXp={onAwardLabXp} />
+        )}
 
-      {activeRepo === 'sonicpi' && (
-        <SonicPiLab
-          authorId={authorId}
-          authorName={authorName}
-          onLaunchAsExercise={onLaunchAsExercise}
-        />
-      )}
+        {activeRepo === 'sonicpi' && (
+          <SonicPiLab
+            authorId={authorId}
+            authorName={authorName}
+            onLaunchAsExercise={onLaunchAsExercise}
+          />
+        )}
 
-      {activeRepo === 'pianobooster' && (
-        <PianoBoosterLab exercises={exercises} onAwardXp={onAwardLabXp} />
-      )}
+        {activeRepo === 'pianobooster' && (
+          <PianoBoosterLab exercises={exercises} onAwardXp={onAwardLabXp} />
+        )}
 
-      {activeRepo === 'minuet' && (
-        <MinuetLab onAwardXp={onAwardLabXp} />
-      )}
+        {activeRepo === 'minuet' && (
+          <MinuetLab onAwardXp={onAwardLabXp} />
+        )}
 
-      {activeRepo === 'solfege' && (
-        <SolfegeLab onAwardXp={onAwardLabXp} />
-      )}
+        {activeRepo === 'solfege' && (
+          <SolfegeLab onAwardXp={onAwardLabXp} />
+        )}
 
-      {activeRepo === 'jalmus' && (
-        <JalmusLab onAwardXp={onAwardLabXp} />
-      )}
+        {activeRepo === 'jalmus' && (
+          <JalmusLab onAwardXp={onAwardLabXp} />
+        )}
 
-      {activeRepo === 'eagerear' && (
-        <EagerEarLab onAwardXp={onAwardLabXp} />
-      )}
+        {activeRepo === 'eagerear' && (
+          <EagerEarLab onAwardXp={onAwardLabXp} />
+        )}
 
-      {activeRepo === 'musescore' && (
-        <MuseScoreLab
-          authorId={authorId}
-          authorName={authorName}
-          onLaunchAsExercise={onLaunchAsExercise}
-          onSaveToLibrary={onSaveExercise}
-        />
-      )}
+        {activeRepo === 'musescore' && (
+          <MuseScoreLab
+            authorId={authorId}
+            authorName={authorName}
+            onLaunchAsExercise={onLaunchAsExercise}
+            onSaveToLibrary={onSaveExercise}
+          />
+        )}
+      </Suspense>
     </section>
   );
 }

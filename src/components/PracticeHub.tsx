@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Suspense, lazy, useMemo, useState } from 'react';
 import {
   Camera,
   Gamepad2,
@@ -9,13 +9,25 @@ import {
   Sliders,
   X,
 } from 'lucide-react';
-import type { ExerciseFocus, MusicExercise, PitchCalibrationSettings } from '../types/music';
+import type {
+  ExerciseFocus,
+  MusicExercise,
+  PitchCalibrationSettings,
+  PracticeAttempt,
+} from '../types/music';
 import type { LearningExperienceMode } from '../utils/kidFriendlyTheme';
 import type { CreateScanTool } from './CreateScanHub';
-import { WarmupSoundboard } from './WarmupSoundboard';
+
+const WarmupSoundboard = lazy(() =>
+  import('./WarmupSoundboard').then((m) => ({ default: m.WarmupSoundboard }))
+);
+const SessionHistoryView = lazy(() =>
+  import('./SessionHistoryView').then((m) => ({ default: m.SessionHistoryView }))
+);
 
 interface PracticeHubProps {
   exercises: MusicExercise[];
+  attempts: PracticeAttempt[];
   learningMode: LearningExperienceMode;
   onChangeLearningMode: (mode: LearningExperienceMode) => void;
   onSelectExercise: (exercise: MusicExercise) => void;
@@ -41,6 +53,7 @@ const CARD_TOP_ACCENT: Record<ExerciseFocus, string> = {
 
 export function PracticeHub({
   exercises,
+  attempts,
   learningMode,
   onChangeLearningMode,
   onSelectExercise,
@@ -49,7 +62,7 @@ export function PracticeHub({
   onOpenCalibration,
   onOpenGame,
 }: PracticeHubProps) {
-  const [practiceView, setPracticeView] = useState<'songs' | 'warmup'>('songs');
+  const [practiceView, setPracticeView] = useState<'songs' | 'warmup' | 'history'>('songs');
   const [focusFilter, setFocusFilter] = useState<'All' | ExerciseFocus>('All');
   const [queryText, setQueryText] = useState<string>('');
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
@@ -219,7 +232,7 @@ export function PracticeHub({
       {/* Practice View Sub-Tabs + Search/Focus Filter */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 rounded-xl border-2 border-[#080808] bg-white p-1">
+          <div className="flex flex-wrap items-center gap-1 rounded-xl border-2 border-[#080808] bg-white p-1">
             <button
               type="button"
               onClick={() => setPracticeView('songs')}
@@ -241,6 +254,17 @@ export function PracticeHub({
               }`}
             >
               Warmup Soundboard
+            </button>
+            <button
+              type="button"
+              onClick={() => setPracticeView('history')}
+              className={`min-h-[36px] rounded-lg px-3.5 py-1.5 text-xs font-bold whitespace-nowrap cursor-pointer transition-colors ${
+                practiceView === 'history'
+                  ? 'border border-[#080808] bg-[#080808] text-[#FFD000]'
+                  : 'text-[#080808] hover:bg-[#FFF9D6]'
+              }`}
+            >
+              Session History ({attempts.length})
             </button>
           </div>
 
@@ -265,9 +289,31 @@ export function PracticeHub({
         </div>
       </div>
 
-      {/* Main Content Area: Either Song Grid OR Warmup Soundboard (Zero Stacking Scroll) */}
-      {practiceView === 'warmup' ? (
-        <WarmupSoundboard />
+      {/* Main Content Area: Song Grid, Warmup Soundboard, OR 30-Day Session History */}
+      {practiceView === 'history' ? (
+        <Suspense
+          fallback={
+            <div className="rounded-2xl border-2 border-[#080808] bg-white p-8 text-center text-sm font-bold text-[#080808]">
+              Loading Session History...
+            </div>
+          }
+        >
+          <SessionHistoryView
+            attempts={attempts}
+            exercises={exercises}
+            onSelectExercise={onSelectExercise}
+          />
+        </Suspense>
+      ) : practiceView === 'warmup' ? (
+        <Suspense
+          fallback={
+            <div className="rounded-2xl border-2 border-[#080808] bg-white p-8 text-center text-sm font-bold text-[#080808]">
+              Loading Warmup Soundboard...
+            </div>
+          }
+        >
+          <WarmupSoundboard />
+        </Suspense>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl border-2 border-[#080808] bg-white p-10 text-center text-sm font-medium text-slate-700 space-y-3">
           <p>
@@ -311,6 +357,8 @@ export function PracticeHub({
                       <img
                         src={coverSrc}
                         alt={`${ex.title} artwork`}
+                        loading="lazy"
+                        decoding="async"
                         referrerPolicy="no-referrer"
                         onError={() =>
                           setFailedImages((prev) => new Set(prev).add(coverSrc))

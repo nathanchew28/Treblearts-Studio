@@ -1,8 +1,16 @@
+import { Suspense, lazy } from 'react';
 import { Camera, FileMusic, Mic } from 'lucide-react';
 import type { MusicExercise } from '../types/music';
-import { AudioToSheetStudio } from './AudioToSheetStudio';
-import { SheetPhotoScanner } from './SheetPhotoScanner';
-import { TeacherStudio } from './TeacherStudio';
+
+const AudioToSheetStudio = lazy(() =>
+  import('./AudioToSheetStudio').then((m) => ({ default: m.AudioToSheetStudio }))
+);
+const SheetPhotoScanner = lazy(() =>
+  import('./SheetPhotoScanner').then((m) => ({ default: m.SheetPhotoScanner }))
+);
+const TeacherStudio = lazy(() =>
+  import('./TeacherStudio').then((m) => ({ default: m.TeacherStudio }))
+);
 
 export type CreateScanTool = 'scanner' | 'audio' | 'notation';
 
@@ -107,36 +115,44 @@ export function CreateScanHub({
         </div>
       </div>
 
-      {activeTool === 'scanner' && (
-        <SheetPhotoScanner
-          authorId={authorId}
-          authorName={authorName}
-          onStartExercise={onPracticeExercise}
-          onSaveExercise={onPublishExercise}
-        />
-      )}
+      <Suspense
+        fallback={
+          <div className="rounded-2xl border-2 border-[#080808] bg-white p-8 text-center text-sm font-bold text-[#080808] shadow-[4px_4px_0_#080808]">
+            Loading studio tool...
+          </div>
+        }
+      >
+        {activeTool === 'scanner' && (
+          <SheetPhotoScanner
+            authorId={authorId}
+            authorName={authorName}
+            onStartExercise={onPracticeExercise}
+            onSaveExercise={onPublishExercise}
+          />
+        )}
 
-      {activeTool === 'audio' && (
-        <AudioToSheetStudio
-          authorId={authorId}
-          authorName={authorName}
-          onStartExercise={onPracticeExercise}
-          onSaveExercise={onPublishExercise}
-          onAwardXp={onAwardXp}
-        />
-      )}
+        {activeTool === 'audio' && (
+          <AudioToSheetStudio
+            authorId={authorId}
+            authorName={authorName}
+            onStartExercise={onPracticeExercise}
+            onSaveExercise={onPublishExercise}
+            onAwardXp={onAwardXp}
+          />
+        )}
 
-      {activeTool === 'notation' && (
-        <TeacherStudio
-          embedded
-          authorId={authorId}
-          authorName={authorName}
-          myExercises={myExercises}
-          onPublishExercise={onPublishExercise}
-          onDeleteExercise={onDeleteExercise}
-          onPracticeExercise={onPracticeExercise}
-        />
-      )}
+        {activeTool === 'notation' && (
+          <TeacherStudio
+            embedded
+            authorId={authorId}
+            authorName={authorName}
+            myExercises={myExercises}
+            onPublishExercise={onPublishExercise}
+            onDeleteExercise={onDeleteExercise}
+            onPracticeExercise={onPracticeExercise}
+          />
+        )}
+      </Suspense>
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { BUILT_IN_EXERCISES } from './data/builtInSongs';
 import { evaluateNewBadges } from './data/gamification';
@@ -28,17 +28,39 @@ import type {
   RecordedPerformance,
   UserProfile,
 } from './types/music';
-import { OpenSourceLabsHub } from './components/labs/OpenSourceLabsHub';
-import { CommunityHub, type CommunitySection } from './components/CommunityHub';
-import { CreateScanHub, type CreateScanTool } from './components/CreateScanHub';
-import { MelodyDashGame } from './components/MelodyDashGame';
+import type { CommunitySection } from './components/CommunityHub';
+import type { CreateScanTool } from './components/CreateScanHub';
 import { OfflineIndicator } from './components/OfflineIndicator';
-import { PitchCalibrationModal } from './components/PitchCalibrationModal';
 import { PracticeHub } from './components/PracticeHub';
-import { PracticeStage } from './components/PracticeStage';
 import { TopBar, type NavTab } from './components/TopBar';
 import { audioEngine } from './utils/audioEngine';
 import type { LearningExperienceMode } from './utils/kidFriendlyTheme';
+import {
+  compactPerformancesForLocalStorage,
+  loadRecordedAudioMapFromIdb,
+  readLocalJson,
+  saveRecordedAudioToIdb,
+  writeLocalJson,
+} from './utils/localStorageManager';
+
+const OpenSourceLabsHub = lazy(() =>
+  import('./components/labs/OpenSourceLabsHub').then((m) => ({ default: m.OpenSourceLabsHub }))
+);
+const CommunityHub = lazy(() =>
+  import('./components/CommunityHub').then((m) => ({ default: m.CommunityHub }))
+);
+const CreateScanHub = lazy(() =>
+  import('./components/CreateScanHub').then((m) => ({ default: m.CreateScanHub }))
+);
+const MelodyDashGame = lazy(() =>
+  import('./components/MelodyDashGame').then((m) => ({ default: m.MelodyDashGame }))
+);
+const PitchCalibrationModal = lazy(() =>
+  import('./components/PitchCalibrationModal').then((m) => ({ default: m.PitchCalibrationModal }))
+);
+const PracticeStage = lazy(() =>
+  import('./components/PracticeStage').then((m) => ({ default: m.PracticeStage }))
+);
 
 const LOCAL_EXERCISES_KEY = 'cadence_local_exercises_v1';
 const LOCAL_ATTEMPTS_KEY = 'cadence_local_attempts_v1';
@@ -60,15 +82,6 @@ const DEFAULT_GUEST_PROFILE: UserProfile = {
   isPublicProfile: true,
 };
 
-function readLocalJson<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('practice');
   const [selectedExercise, setSelectedExercise] = useState<MusicExercise | null>(null);
@@ -78,7 +91,7 @@ export default function App() {
 
   const handleChangeLearningMode = useCallback((mode: LearningExperienceMode) => {
     setLearningMode(mode);
-    localStorage.setItem(LOCAL_LEARNING_MODE_KEY, JSON.stringify(mode));
+    writeLocalJson(LOCAL_LEARNING_MODE_KEY, mode);
   }, []);
 
   const [user, setUser] = useState<User | null>(null);
@@ -108,6 +121,23 @@ export default function App() {
   useEffect(() => {
     return audioEngine.subscribePitchCalibration((nextCal) => {
       setPitchCalibration(nextCal);
+    });
+  }, []);
+
+  // Hydrate bulky guest audio recordings from IndexedDB on boot
+  useEffect(() => {
+    const localSaved = readLocalJson<RecordedPerformance[]>(LOCAL_PERFS_KEY, []);
+    const missingAudioIds = localSaved.filter((p) => !p.audioDataUrl).map((p) => p.id);
+    if (missingAudioIds.length === 0) return;
+
+    void loadRecordedAudioMapFromIdb(missingAudioIds).then((audioMap) => {
+      if (audioMap.size === 0) return;
+      setPerformances((prev) =>
+        prev.map((p) => {
+          const idbAudio = audioMap.get(p.id);
+          return idbAudio && !p.audioDataUrl ? { ...p, audioDataUrl: idbAudio } : p;
+        })
+      );
     });
   }, []);
 
@@ -244,10 +274,10 @@ export default function App() {
         setNotice('Saved run locally; cloud sync will retry on next session.');
       }
     } else {
-      localStorage.setItem(LOCAL_PROFILE_KEY, JSON.stringify(nextProfile));
-      localStorage.setItem(
+      writeLocalJson(LOCAL_PROFILE_KEY, nextProfile);
+      writeLocalJson(
         LOCAL_ATTEMPTS_KEY,
-        JSON.stringify([hydratedAttempt, ...attempts].slice(0, 60))
+        [hydratedAttempt, ...attempts].slice(0, 60)
       );
     }
   };
@@ -275,7 +305,7 @@ export default function App() {
       };
       const updated = [localEx, ...localExercises];
       setLocalExercises(updated);
-      localStorage.setItem(LOCAL_EXERCISES_KEY, JSON.stringify(updated));
+      writeLocalJson(LOCAL_EXERCISES_KEY, updated);
     }
   };
 
@@ -286,7 +316,7 @@ export default function App() {
     } else {
       const updated = localExercises.filter((e) => e.id !== exerciseId);
       setLocalExercises(updated);
-      localStorage.setItem(LOCAL_EXERCISES_KEY, JSON.stringify(updated));
+      writeLocalJson(LOCAL_EXERCISES_KEY, updated);
     }
   };
 
@@ -333,10 +363,13 @@ export default function App() {
       return id;
     }
 
-    const updated = [perfRecord, ...performances];
+    const updated = [perfRecord, ...performances].slice(0, 15);
     setPerformances(updated);
-    localStorage.setItem(LOCAL_PERFS_KEY, JSON.stringify(updated.slice(0, 15)));
-    setNotice('Recorded performance added to your local Shared Stage. Sign in with Google to share links across devices.');
+    if (perfRecord.audioDataUrl) {
+      await saveRecordedAudioToIdb(perfRecord.id, perfRecord.audioDataUrl);
+    }
+    writeLocalJson(LOCAL_PERFS_KEY, compactPerformancesForLocalStorage(updated));
+    setNotice('Recorded performance saved to your local Shared Stage. Sign in with Google to share links across devices.');
     return id;
   };
 
@@ -382,7 +415,7 @@ export default function App() {
           // Non-fatal local sync
         }
       } else {
-        localStorage.setItem(LOCAL_PROFILE_KEY, JSON.stringify(nextProfile));
+        writeLocalJson(LOCAL_PROFILE_KEY, nextProfile);
       }
     },
     [profile, user]
@@ -419,101 +452,116 @@ export default function App() {
       )}
 
       <main className={activeTab === 'game' ? '' : 'pb-16'}>
-        {activeTab === 'game' && (
-          <MelodyDashGame
-            exercises={allExercises}
-            calibration={pitchCalibration}
-            onOpenCalibration={() => setCalibrationOpen(true)}
-            onExitToStudio={() => setActiveTab('practice')}
-            onAwardXp={(xp) => void handleAwardLabXp(xp)}
-          />
-        )}
+        <Suspense
+          fallback={
+            <div className="mx-auto max-w-[1360px] px-6 py-10">
+              <div className="rounded-2xl border-2 border-[#080808] bg-white p-8 text-center text-sm font-bold text-[#080808] shadow-[4px_4px_0_#080808]">
+                Loading Treblearts Studio workspace...
+              </div>
+            </div>
+          }
+        >
+          {activeTab === 'game' && (
+            <MelodyDashGame
+              exercises={allExercises}
+              calibration={pitchCalibration}
+              onOpenCalibration={() => setCalibrationOpen(true)}
+              onExitToStudio={() => setActiveTab('practice')}
+              onAwardXp={(xp) => void handleAwardLabXp(xp)}
+            />
+          )}
 
-        {activeTab === 'practice' && selectedExercise && (
-          <PracticeStage
-            exercise={selectedExercise}
-            learningMode={learningMode}
-            onChangeLearningMode={handleChangeLearningMode}
-            onBackToLibrary={() => setSelectedExercise(null)}
-            onCompleteAttempt={handleCompleteAttempt}
-            onSharePerformance={handleSharePerformance}
-            onOpenCalibration={() => setCalibrationOpen(true)}
-          />
-        )}
+          {activeTab === 'practice' && selectedExercise && (
+            <PracticeStage
+              exercise={selectedExercise}
+              learningMode={learningMode}
+              onChangeLearningMode={handleChangeLearningMode}
+              onBackToLibrary={() => setSelectedExercise(null)}
+              onCompleteAttempt={handleCompleteAttempt}
+              onSharePerformance={handleSharePerformance}
+              onOpenCalibration={() => setCalibrationOpen(true)}
+            />
+          )}
 
-        {activeTab === 'practice' && !selectedExercise && (
-          <PracticeHub
-            exercises={allExercises}
-            learningMode={learningMode}
-            onChangeLearningMode={handleChangeLearningMode}
-            onSelectExercise={handleSelectExercise}
-            onOpenCreateTool={(tool) => {
-              setCreateTool(tool);
-              setActiveTab('create');
-            }}
-            calibration={pitchCalibration}
-            onOpenCalibration={() => setCalibrationOpen(true)}
-            onOpenGame={() => setActiveTab('game')}
-          />
-        )}
+          {activeTab === 'practice' && !selectedExercise && (
+            <PracticeHub
+              exercises={allExercises}
+              attempts={attempts}
+              learningMode={learningMode}
+              onChangeLearningMode={handleChangeLearningMode}
+              onSelectExercise={handleSelectExercise}
+              onOpenCreateTool={(tool) => {
+                setCreateTool(tool);
+                setActiveTab('create');
+              }}
+              calibration={pitchCalibration}
+              onOpenCalibration={() => setCalibrationOpen(true)}
+              onOpenGame={() => setActiveTab('game')}
+            />
+          )}
 
-        {activeTab === 'create' && (
-          <CreateScanHub
-            activeTool={createTool}
-            onChangeTool={setCreateTool}
-            authorId={user?.uid || 'guest-musician'}
-            authorName={profile.displayName}
-            myExercises={myExercises}
-            onPublishExercise={handlePublishExercise}
-            onDeleteExercise={handleDeleteExercise}
-            onPracticeExercise={handleSelectExercise}
-            onAwardXp={(xp) => void handleAwardLabXp(xp)}
-          />
-        )}
+          {activeTab === 'create' && (
+            <CreateScanHub
+              activeTool={createTool}
+              onChangeTool={setCreateTool}
+              authorId={user?.uid || 'guest-musician'}
+              authorName={profile.displayName}
+              myExercises={myExercises}
+              onPublishExercise={handlePublishExercise}
+              onDeleteExercise={handleDeleteExercise}
+              onPracticeExercise={handleSelectExercise}
+              onAwardXp={(xp) => void handleAwardLabXp(xp)}
+            />
+          )}
 
-        {activeTab === 'labs' && (
-          <OpenSourceLabsHub
-            exercises={allExercises}
-            authorId={user?.uid || 'guest-musician'}
-            authorName={profile.displayName}
-            onLaunchAsExercise={handleSelectExercise}
-            onSaveExercise={handlePublishExercise}
-            onAwardLabXp={(xp) => void handleAwardLabXp(xp)}
-          />
-        )}
+          {activeTab === 'labs' && (
+            <OpenSourceLabsHub
+              exercises={allExercises}
+              authorId={user?.uid || 'guest-musician'}
+              authorName={profile.displayName}
+              onLaunchAsExercise={handleSelectExercise}
+              onSaveExercise={handlePublishExercise}
+              onAwardLabXp={(xp) => void handleAwardLabXp(xp)}
+            />
+          )}
 
-        {activeTab === 'community' && (
-          <CommunityHub
-            activeSection={communitySection}
-            onChangeSection={setCommunitySection}
-            profile={profile}
-            attempts={attempts}
-            exercises={allExercises}
-            onPracticeExercise={handleSelectExercise}
-            leaderboardEntries={leaderboard}
-            isSignedIn={Boolean(user)}
-            onSignIn={handleAuthAction}
-            performances={performances}
-            spotlightPerformance={spotlightPerf}
-            onApplaud={handleApplaud}
-            onClearSpotlight={() => {
-              setSpotlightPerf(null);
-              window.history.replaceState({}, '', window.location.pathname);
-            }}
-          />
-        )}
+          {activeTab === 'community' && (
+            <CommunityHub
+              activeSection={communitySection}
+              onChangeSection={setCommunitySection}
+              profile={profile}
+              attempts={attempts}
+              exercises={allExercises}
+              onPracticeExercise={handleSelectExercise}
+              leaderboardEntries={leaderboard}
+              isSignedIn={Boolean(user)}
+              onSignIn={handleAuthAction}
+              performances={performances}
+              spotlightPerformance={spotlightPerf}
+              onApplaud={handleApplaud}
+              onClearSpotlight={() => {
+                setSpotlightPerf(null);
+                window.history.replaceState({}, '', window.location.pathname);
+              }}
+            />
+          )}
+        </Suspense>
       </main>
 
-      <PitchCalibrationModal
-        isOpen={calibrationOpen}
-        onClose={() => setCalibrationOpen(false)}
-        onSaved={(nextCal) => {
-          setPitchCalibration(nextCal);
-          setNotice(
-            `Global pitch calibration updated: ${nextCal.instrumentLabel} (A4 = ${nextCal.referenceA4Hz.toFixed(1)} Hz).`
-          );
-        }}
-      />
+      {calibrationOpen && (
+        <Suspense fallback={null}>
+          <PitchCalibrationModal
+            isOpen={calibrationOpen}
+            onClose={() => setCalibrationOpen(false)}
+            onSaved={(nextCal) => {
+              setPitchCalibration(nextCal);
+              setNotice(
+                `Global pitch calibration updated: ${nextCal.instrumentLabel} (A4 = ${nextCal.referenceA4Hz.toFixed(1)} Hz).`
+              );
+            }}
+          />
+        </Suspense>
+      )}
 
       <OfflineIndicator />
     </div>

@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import confetti from 'canvas-confetti';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
   Clock,
@@ -36,8 +35,12 @@ import {
   PomodoroPracticeTimerCard,
   usePomodoroTimer,
 } from './PomodoroPracticeTimer';
-import { RhythmTrainerModule } from './RhythmTrainerModule';
-import { SheetMusicViewer } from './SheetMusicViewer';
+const RhythmTrainerModule = lazy(() =>
+  import('./RhythmTrainerModule').then((m) => ({ default: m.RhythmTrainerModule }))
+);
+const SheetMusicViewer = lazy(() =>
+  import('./SheetMusicViewer').then((m) => ({ default: m.SheetMusicViewer }))
+);
 
 interface PracticeStageProps {
   exercise: MusicExercise;
@@ -501,7 +504,9 @@ export function PracticeStage({
     const xpEarned = Math.round(40 + accuracy * 1.4 + stars * 35);
 
     if (stars >= 2) {
-      void confetti({ particleCount: stars === 3 ? 85 : 40, spread: 65, origin: { y: 0.65 } });
+      void import('canvas-confetti').then((mod) =>
+        mod.default({ particleCount: stars === 3 ? 85 : 40, spread: 65, origin: { y: 0.65 } })
+      );
     }
 
     if (isRecording) {
@@ -1197,7 +1202,9 @@ export function PracticeStage({
       if (id) {
         const url = `${window.location.origin}?share=${id}`;
         setShareUrl(url);
-        void confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+        void import('canvas-confetti').then((mod) =>
+          mod.default({ particleCount: 70, spread: 70, origin: { y: 0.6 } })
+        );
       }
     } finally {
       setIsSharing(false);
@@ -1359,28 +1366,44 @@ export function PracticeStage({
         {/* Interactive Stage (8 cols) */}
         <div className="space-y-4 lg:col-span-8">
           {stageTab === 'rhythm_trainer' ? (
-            <RhythmTrainerModule
-              bpm={effectiveBpm}
-              timeSignature={practiceTimeSignature}
-              metronomeClickOn={metronomeOn}
-              micEnabled={micEnabled}
-              liveRms={liveRms}
-              tapThreshold={tapThreshold}
-              onToggleMic={toggleMic}
-              onChangeTapThreshold={setTapThreshold}
-              registerTransientHandler={(fn) => {
-                trainerTransientHandlerRef.current = fn;
-              }}
-              onCompleteDrillAttempt={onCompleteAttempt}
-            />
+            <Suspense
+              fallback={
+                <div className="rounded-2xl border-2 border-[#080808] bg-white p-8 text-center text-sm font-bold text-[#080808]">
+                  Loading Rhythm Trainer...
+                </div>
+              }
+            >
+              <RhythmTrainerModule
+                bpm={effectiveBpm}
+                timeSignature={practiceTimeSignature}
+                metronomeClickOn={metronomeOn}
+                micEnabled={micEnabled}
+                liveRms={liveRms}
+                tapThreshold={tapThreshold}
+                onToggleMic={toggleMic}
+                onChangeTapThreshold={setTapThreshold}
+                registerTransientHandler={(fn) => {
+                  trainerTransientHandlerRef.current = fn;
+                }}
+                onCompleteDrillAttempt={onCompleteAttempt}
+              />
+            </Suspense>
           ) : (
             <>
-              <SheetMusicViewer
-                exercise={exercise}
-                activeNoteIndex={activeNoteIndex}
-                interactive
-                compactFocus={activity === 'pitch' || activity === 'performance'}
-              />
+              <Suspense
+                fallback={
+                  <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-xs font-semibold text-slate-600">
+                    Rendering sheet notation...
+                  </div>
+                }
+              >
+                <SheetMusicViewer
+                  exercise={exercise}
+                  activeNoteIndex={activeNoteIndex}
+                  interactive
+                  compactFocus={activity === 'pitch' || activity === 'performance'}
+                />
+              </Suspense>
 
           {/* Live 60fps Highway Canvas */}
           <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
